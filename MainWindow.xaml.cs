@@ -1,8 +1,11 @@
 using System;
+using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
@@ -22,6 +25,23 @@ namespace OllamaTurn
         {
             PropertyNameCaseInsensitive = true
         };
+
+        // Note Chat timestamps look like "7/21/2026, 10:25:04 AM" (en-US).
+        private static readonly CultureInfo EnUs = CultureInfo.GetCultureInfo("en-US");
+
+        private sealed class Turn
+        {
+            public string BaseUrl;
+            public string Model;
+            public string Prompt;
+            public string Response;
+            public DateTime Created;
+            public DateTime Updated;
+        }
+
+        // The most recent completed turn, cached so Export can reuse it.
+        private Turn _lastTurn;
+        private string _lastExportDir;
 
         private string ConfigPath => Path.Combine(AppContext.BaseDirectory, "config.json");
 
@@ -83,6 +103,7 @@ namespace OllamaTurn
                     "saveConfig" => SaveConfig(payload),
                     "listModels" => await ListModelsAsync(payload),
                     "generate" => await GenerateAsync(payload),
+                    "export" => await ExportAsync(),
                     "closeApp" => CloseApp(),
                     _ => throw new InvalidOperationException("Unknown action: " + action)
                 };
@@ -203,13 +224,29 @@ namespace OllamaTurn
             if (string.IsNullOrWhiteSpace(model))
                 throw new InvalidOperationException("No model selected.");
 
-            var reqBody = JsonSerializer.Serialize(new
-            {
-                model,
-                prompt,
-                stream = false
-            });
+            var created = DateTime.Now;
+            var (response, totalNs, evalCount) = await RawGenerateAsync(baseUrl, model, prompt);
+            var updated = DateTime.Now;
 
+            // Cache the turn so Export can reuse it with accurate timestamps.
+            _lastTurn = new Turn
+            {
+                BaseUrl = baseUrl,
+                Model = model,
+                Prompt = prompt,
+                Response = response,
+                Created = created,
+                Updated = updated
+            };
+
+            return new { response, totalNs, evalCount };
+        }
+
+        // Shared POST /api/generate call, returning the text plus a couple of stats.
+        private async Task<(string response, long? totalNs, int? evalCount)> RawGenerateAsync(
+            string baseUrl, string model, string prompt)
+        {
+            var reqBody = JsonSerializer.Serialize(new { model, prompt, stream = false });
             using var content = new StringContent(reqBody, Encoding.UTF8, "application/json");
             var resp = await Http.PostAsync(baseUrl + "/api/generate", content);
             var body = await resp.Content.ReadAsStringAsync();
@@ -217,18 +254,171 @@ namespace OllamaTurn
                 throw new InvalidOperationException($"Ollama returned {(int)resp.StatusCode}: {body}");
 
             using var doc = JsonDocument.Parse(body);
-            var response = doc.RootElement.TryGetProperty("response", out var r)
-                ? r.GetString() : "";
+            var root = doc.RootElement;
+            var response = root.TryGetProperty("response", out var r) ? r.GetString() : "";
+            long? totalNs = root.TryGetProperty("total_duration", out var td) &&
+                            td.ValueKind == JsonValueKind.Number ? td.GetInt64() : (long?)null;
+            int? evalCount = root.TryGetProperty("eval_count", out var ec) &&
+                             ec.ValueKind == JsonValueKind.Number ? ec.GetInt32() : (int?)null;
+            return (response, totalNs, evalCount);
+        }
 
-            // Pull a couple of useful stats if present.
-            long? totalNs = doc.RootElement.TryGetProperty("total_duration", out var td) &&
-                            td.ValueKind == JsonValueKind.Number
-                ? td.GetInt64() : (long?)null;
-            int? evalCount = doc.RootElement.TryGetProperty("eval_count", out var ec) &&
-                             ec.ValueKind == JsonValueKind.Number
-                ? ec.GetInt32() : (int?)null;
+        // ---- Export ---------------------------------------------------------
 
-            return new { response, totalNs, evalCount };
+        private async Task<object> ExportAsync()
+        {
+            var t = _lastTurn;
+            if (t == null)
+                throw new InvalidOperationException("Nothing to export yet — run a turn first.");
+
+            var title = await MakeTitleAsync(t);
+            var defaultName = $"{t.Created:yyyy-MMdd-HHmm} Ollama Turn export - {SanitizeFileName(title)}.md";
+
+            // Show the Save As dialog on the UI thread.
+            string chosen = null;
+            await Dispatcher.InvokeAsync(() =>
+            {
+                var dlg = new Microsoft.Win32.SaveFileDialog
+                {
+                    Title = "Export turn to Markdown",
+                    FileName = defaultName,
+                    DefaultExt = ".md",
+                    Filter = "Markdown (*.md)|*.md|All files (*.*)|*.*",
+                    AddExtension = true,
+                    OverwritePrompt = false // we handle append-vs-overwrite ourselves
+                };
+                if (!string.IsNullOrEmpty(_lastExportDir) && Directory.Exists(_lastExportDir))
+                    dlg.InitialDirectory = _lastExportDir;
+
+                if (dlg.ShowDialog(this) == true) chosen = dlg.FileName;
+            });
+
+            if (chosen == null) return new { canceled = true };
+
+            bool appended = false;
+            if (File.Exists(chosen))
+            {
+                // Existing file: append (multi-turn) / overwrite / cancel.
+                var choice = MessageBoxResult.Cancel;
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    choice = MessageBox.Show(this,
+                        $"\"{Path.GetFileName(chosen)}\" already exists.\n\n" +
+                        "Yes  —  Append this turn to it\n" +
+                        "No   —  Overwrite it\n" +
+                        "Cancel  —  Do nothing",
+                        "Export", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+                });
+
+                if (choice == MessageBoxResult.Cancel) return new { canceled = true };
+
+                if (choice == MessageBoxResult.Yes)
+                {
+                    var existing = File.ReadAllText(chosen);
+                    File.WriteAllText(chosen, AppendTurn(existing, t), Utf8NoBom);
+                    appended = true;
+                }
+                else // No = overwrite
+                {
+                    File.WriteAllText(chosen, BuildDocument(t), Utf8NoBom);
+                }
+            }
+            else
+            {
+                File.WriteAllText(chosen, BuildDocument(t), Utf8NoBom);
+            }
+
+            _lastExportDir = Path.GetDirectoryName(chosen);
+            return new { path = chosen, appended };
+        }
+
+        private async Task<string> MakeTitleAsync(Turn t)
+        {
+            try
+            {
+                var prompt =
+                    "Write a short, descriptive title for the following exchange. " +
+                    "Use 3 to 7 words in Title Case. No quotes, no punctuation, no trailing period. " +
+                    "Reply with only the title.\n\n" +
+                    "User: " + t.Prompt + "\n\nAssistant: " + t.Response;
+
+                var (raw, _, _) = await RawGenerateAsync(t.BaseUrl, t.Model, prompt);
+                var title = Regex.Replace((raw ?? "").Trim().Trim('"', '\'', '.'), @"\s+", " ").Trim();
+                if (title.Length > 70) title = title.Substring(0, 70).Trim();
+                return string.IsNullOrWhiteSpace(title) ? FallbackTitle(t) : title;
+            }
+            catch
+            {
+                return FallbackTitle(t);
+            }
+        }
+
+        private static string FallbackTitle(Turn t)
+        {
+            var words = (t.Prompt ?? "").Split(
+                new[] { ' ', '\r', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            var take = string.Join(" ", words.Take(6));
+            return string.IsNullOrWhiteSpace(take) ? "Untitled Turn" : take;
+        }
+
+        private static string SanitizeFileName(string name)
+        {
+            foreach (var c in Path.GetInvalidFileNameChars())
+                name = name.Replace(c.ToString(), "");
+            name = name.Trim().Trim('.');
+            return string.IsNullOrWhiteSpace(name) ? "Untitled Turn" : name;
+        }
+
+        private static readonly UTF8Encoding Utf8NoBom = new UTF8Encoding(false);
+
+        private static string Ts(DateTime d) => d.ToString("M/d/yyyy, h:mm:ss tt", EnUs);
+
+        private static string BuildSections(Turn t)
+        {
+            var sb = new StringBuilder();
+            sb.Append("## User prompt\n");
+            sb.Append('*').Append(Ts(t.Created)).Append("*\n\n");
+            sb.Append((t.Prompt ?? "").Trim()).Append("\n\n");
+            sb.Append("## Ollama response\n");
+            sb.Append('*').Append(Ts(t.Updated)).Append("*\n\n");
+            sb.Append((t.Response ?? "").Trim()).Append('\n');
+            return sb.ToString();
+        }
+
+        private static string BuildDocument(Turn t)
+        {
+            var sb = new StringBuilder();
+            sb.Append("---\n");
+            sb.Append("created: ").Append(Ts(t.Created)).Append('\n');
+            sb.Append("updated: ").Append(Ts(t.Updated)).Append('\n');
+            sb.Append("model: \"Ollama — ").Append(t.Model).Append("\"\n");
+            sb.Append("---\n\n");
+            sb.Append(BuildSections(t));
+            return sb.ToString();
+        }
+
+        private static string AppendTurn(string existing, Turn t)
+        {
+            existing = BumpUpdated(existing, Ts(t.Updated));
+            return existing.TrimEnd() + "\n\n" + BuildSections(t);
+        }
+
+        // Update (or insert) the frontmatter `updated:` value; leave `created:` alone.
+        private static string BumpUpdated(string text, string updatedTs)
+        {
+            if (text == null || !text.StartsWith("---")) return text;
+            int close = text.IndexOf("\n---", 3, StringComparison.Ordinal);
+            if (close < 0) return text;
+
+            var frontmatter = text.Substring(0, close);
+            var rest = text.Substring(close);
+            var line = "updated: " + updatedTs;
+
+            frontmatter = Regex.IsMatch(frontmatter, @"(?m)^updated:.*$")
+                ? Regex.Replace(frontmatter, @"(?m)^updated:.*$", line)
+                : frontmatter.TrimEnd('\n') + "\n" + line;
+
+            return frontmatter + rest;
         }
     }
 }

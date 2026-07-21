@@ -209,6 +209,8 @@
         <button id="copyClearBtn" class="secondary">Copy &amp; Clear</button>
         <button id="copyCloseBtn" class="secondary">Copy &amp; Close</button>
         <span class="saved-flash" id="copyFlash">Copied</span>
+        <span class="grow"></span>
+        <button id="exportBtn">Export</button>
       </div>
     </section>
   </main>
@@ -351,6 +353,7 @@
   const copyClearBtn = $('copyClearBtn');
   const copyCloseBtn = $('copyCloseBtn');
   const copyFlash = $('copyFlash');
+  const exportBtn = $('exportBtn');
 
   function flashCopy(msg, isErr) {
     copyFlash.textContent = msg;
@@ -396,6 +399,29 @@
   });
   copyCloseBtn.addEventListener('click', async () => {
     if (await copyResponse()) { try { await rpc('closeApp'); } catch (_) {} }
+  });
+
+  exportBtn.addEventListener('click', async () => {
+    if (!responseText().trim()) { flashCopy('Nothing to export', true); return; }
+    exportBtn.disabled = true;
+    const orig = exportBtn.textContent;
+    exportBtn.innerHTML = '<span class="spinner"></span> Exporting…';
+    try {
+      const res = await rpc('export');
+      if (res && res.canceled) {
+        // user backed out — stay quiet
+      } else if (res && res.path) {
+        flashCopy(res.appended ? 'Appended' : 'Exported');
+        responseMeta.className = 'meta';
+        responseMeta.textContent = (res.appended ? 'Appended to ' : 'Exported to ') + res.path;
+      }
+    } catch (e) {
+      responseMeta.className = 'meta err';
+      responseMeta.textContent = 'Export failed: ' + e.message;
+    } finally {
+      exportBtn.disabled = false;
+      exportBtn.textContent = orig;
+    }
   });
 
   // ---- Wire up -----------------------------------------------------------
