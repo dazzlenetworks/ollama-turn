@@ -6,12 +6,23 @@ It also **exports turns to Markdown** in a clean, frontmatter'd format — and c
 
 ## Run it
 
-Double-click **`start.bat`** (it builds on first run, then just launches the exe).
+Double-click **`scripts\start.bat`** (it builds on first run, then just launches the exe).
 
 Or from a terminal:
 
 ```
 dotnet run -c Debug
+```
+
+## Scripts
+
+Helper scripts live in [`scripts/`](scripts):
+
+```
+scripts\start.bat    Launch the app (builds first if needed)
+scripts\build.bat    Build the Debug configuration
+scripts\publish.ps1  Publish a self-contained single-file release into dist\
+scripts\clean.ps1    Remove build artifacts (bin, obj, dist)
 ```
 
 ## How it works
@@ -63,7 +74,7 @@ Because shorter (blue) wavelengths scatter more in the atmosphere…
 ## Files
 
 ```
-start.bat            Double-click launcher
+scripts/             Launch, build, publish, and clean helpers
 OllamaTurn.csproj    WPF + WebView2 project
 App.xaml(.cs)        App entry
 MainWindow.xaml(.cs) WebView2 host + config I/O + Ollama proxy + Markdown export

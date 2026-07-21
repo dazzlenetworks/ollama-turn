@@ -2,6 +2,9 @@
 bin/
 obj/
 
+# Self-contained publish output (scripts/publish.ps1)
+dist/
+
 # WebView2 runtime user-data folder (created next to the exe at runtime)
 *.WebView2/
 
