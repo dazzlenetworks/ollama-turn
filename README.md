@@ -4,6 +4,8 @@ A tiny Windows desktop app for doing a **single request → single response** tu
 
 It also **exports turns to Markdown** in a clean, frontmatter'd format — and can **append** successive turns to the same file, so a deliberately single-turn app doubles as a multi-turn transcript builder.
 
+![Ollama Turn — the app window showing the server, prompt, and response cards](docs/screenshot.png)
+
 ## Run it
 
 Double-click **`scripts\start.bat`** (it builds on first run, then just launches the exe).
