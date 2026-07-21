@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ollama Turn</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1e222b;
+    --border: #2a2f3a;
+    --text: #e7e9ee;
+    --muted: #9aa3b2;
+    --accent: #5b8cff;
+    --accent-press: #4a78e0;
+    --good: #3ecf8e;
+    --bad: #ff6b6b;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  header {
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: .2px; }
+  header .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--muted); flex: none;
+    transition: background .2s;
+  }
+  header .dot.ok { background: var(--good); box-shadow: 0 0 8px rgba(62,207,142,.6); }
+  header .dot.err { background: var(--bad); box-shadow: 0 0 8px rgba(255,107,107,.6); }
+  header .spacer { flex: 1; }
+  header .hint { color: var(--muted); font-size: 12px; }
+
+  main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    max-width: 1080px;
+    width: 100%;
+    margin: 0 auto;
+    padding-top: 28px;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .card h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .8px;
+    color: var(--muted); margin: 0 0 12px; font-weight: 600;
+  }
+
+  .row { display: flex; gap: 10px; align-items: center; }
+  .row + .row { margin-top: 10px; }
+  .grow { flex: 1; }
+
+  label.field { display: block; }
+  .lbl { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+
+  input[type=text], select, textarea {
+    width: 100%;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font: inherit;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input[type=text]:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(91,140,255,.15);
+  }
+  textarea { resize: vertical; min-height: 90px; }
+  select {
+    appearance: none;
+    cursor: pointer;
+    padding-right: 36px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1.5l5 5 5-5' fill='none' stroke='%239aa3b2' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 13px center;
+    background-size: 12px 8px;
+  }
+  select:hover { background-color: var(--panel); }
+
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .15s, opacity .15s;
+  }
+  button:hover { background: var(--accent-press); }
+  button:active { transform: translateY(1px); }
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-weight: 500;
+  }
+  button.secondary:hover { background: var(--panel-2); }
+  button:disabled { opacity: .5; cursor: default; }
+
+  .response {
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    min-height: 120px;
+    font: 13.5px/1.6 "Cascadia Code", "Consolas", ui-monospace, monospace;
+  }
+  .response.placeholder { color: var(--muted); font-style: italic; }
+
+  .meta { color: var(--muted); font-size: 12px; margin-top: 8px; min-height: 16px; }
+  .err { color: var(--bad); }
+
+  .spinner {
+    width: 15px; height: 15px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.35);
+    border-top-color: #fff;
+    display: inline-block; vertical-align: -2px;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .saved-flash { color: var(--good); font-size: 12px; opacity: 0; transition: opacity .2s; }
+  .saved-flash.show { opacity: 1; }
+</style>
+</head>
+<body>
+  <header>
+    <span id="statusDot" class="dot" title="Connection status"></span>
+    <h1>Ollama Turn</h1>
+    <span class="spacer"></span>
+    <span class="hint">single request &rarr; single response</span>
+  </header>
+
+  <main>
+    <!-- Settings -->
+    <section class="card">
+      <h2>Ollama server</h2>
+      <div class="row">
+        <div class="grow">
+          <input type="text" id="urlInput" placeholder="http://host:11434/" spellcheck="false" />
+        </div>
+        <button id="saveBtn" class="secondary">Save</button>
+        <button id="refreshBtn" class="secondary">Refresh models</button>
+      </div>
+      <div class="row" style="justify-content: space-between;">
+        <div class="meta" id="serverMeta"></div>
+        <span class="saved-flash" id="savedFlash">Saved to config.json</span>
+      </div>
+    </section>
+
+    <!-- Prompt -->
+    <section class="card">
+      <h2>Prompt</h2>
+      <label class="field">
+        <div class="lbl">Model</div>
+        <select id="modelSelect"><option value="">(no models loaded)</option></select>
+      </label>
+      <div style="height:12px"></div>
+      <label class="field">
+        <div class="lbl">Message</div>
+        <textarea id="promptInput" placeholder="Ask something&hellip;  (Ctrl+Enter to send)"></textarea>
+      </label>
+      <div class="row" style="margin-top:12px; justify-content: flex-end;">
+        <button id="sendBtn">Send</button>
+      </div>
+    </section>
+
+    <!-- Response -->
+    <section class="card">
+      <h2>Response</h2>
+      <div id="response" class="response placeholder">No response yet.</div>
+      <div class="meta" id="responseMeta"></div>
+      <div class="row" style="margin-top:12px; align-items:center;">
+        <button id="copyBtn" class="secondary">Copy</button>
+        <button id="copyClearBtn" class="secondary">Copy &amp; Clear</button>
+        <button id="copyCloseBtn" class="secondary">Copy &amp; Close</button>
+        <span class="saved-flash" id="copyFlash">Copied</span>
+      </div>
+    </section>
+  </main>
+
+<script>
+  // ---- RPC bridge to the C# host ----------------------------------------
+  const pending = {};
+  let seq = 0;
+  function rpc(action, payload) {
+    return new Promise((resolve, reject) => {
+      const id = ++seq;
+      pending[id] = { resolve, reject };
+      window.chrome.webview.postMessage({ id, action, payload: payload || {} });
+    });
+  }
+  window.chrome.webview.addEventListener('message', ev => {
+    const m = ev.data;
+    const p = pending[m.id];
+    if (!p) return;
+    delete pending[m.id];
+    if (m.ok) p.resolve(m.data);
+    else p.reject(new Error(m.error || 'Unknown error'));
+  });
+
+  // ---- Elements ----------------------------------------------------------
+  const $ = id => document.getElementById(id);
+  const urlInput = $('urlInput');
+  const saveBtn = $('saveBtn');
+  const refreshBtn = $('refreshBtn');
+  const modelSelect = $('modelSelect');
+  const promptInput = $('promptInput');
+  const sendBtn = $('sendBtn');
+  const responseEl = $('response');
+  const responseMeta = $('responseMeta');
+  const serverMeta = $('serverMeta');
+  const statusDot = $('statusDot');
+  const savedFlash = $('savedFlash');
+
+  function currentUrl() { return urlInput.value.trim(); }
+  function setStatus(state) { // '', 'ok', 'err'
+    statusDot.className = 'dot' + (state ? ' ' + state : '');
+  }
+  function setServerMeta(msg, isErr) {
+    serverMeta.textContent = msg || '';
+    serverMeta.className = 'meta' + (isErr ? ' err' : '');
+  }
+
+  // ---- Model loading -----------------------------------------------------
+  async function loadModels() {
+    const url = currentUrl();
+    if (!url) { setServerMeta('Enter a server URL first.', true); return; }
+    setServerMeta('Loading models…');
+    setStatus('');
+    refreshBtn.disabled = true;
+    try {
+      const { models } = await rpc('listModels', { url });
+      modelSelect.innerHTML = '';
+      if (!models || models.length === 0) {
+        modelSelect.innerHTML = '<option value="">(no models on server)</option>';
+        setServerMeta('Connected, but no models are installed.', false);
+        setStatus('ok');
+        return;
+      }
+      for (const name of models) {
+        const opt = document.createElement('option');
+        opt.value = name; opt.textContent = name;
+        modelSelect.appendChild(opt);
+      }
+      // Restore the last-used model if it's still available.
+      const last = localStorage.getItem('lastModel');
+      if (last && models.includes(last)) modelSelect.value = last;
+      setServerMeta(`Connected · ${models.length} model${models.length === 1 ? '' : 's'}`);
+      setStatus('ok');
+    } catch (e) {
+      modelSelect.innerHTML = '<option value="">(couldn\'t load)</option>';
+      setServerMeta('Could not reach server: ' + e.message, true);
+      setStatus('err');
+    } finally {
+      refreshBtn.disabled = false;
+    }
+  }
+
+  // ---- Save config -------------------------------------------------------
+  async function saveConfig() {
+    const url = currentUrl();
+    if (!url) { setServerMeta('Enter a server URL first.', true); return; }
+    saveBtn.disabled = true;
+    try {
+      await rpc('saveConfig', { url });
+      savedFlash.classList.add('show');
+      setTimeout(() => savedFlash.classList.remove('show'), 1400);
+      await loadModels();
+    } catch (e) {
+      setServerMeta('Save failed: ' + e.message, true);
+    } finally {
+      saveBtn.disabled = false;
+    }
+  }
+
+  // ---- Generate ----------------------------------------------------------
+  async function send() {
+    const url = currentUrl();
+    const model = modelSelect.value;
+    const prompt = promptInput.value;
+    if (!url) { setServerMeta('Enter a server URL first.', true); return; }
+    if (!model) { responseMeta.textContent = 'Pick a model first.'; responseMeta.className = 'meta err'; return; }
+    if (!prompt.trim()) { responseMeta.textContent = 'Type a message first.'; responseMeta.className = 'meta err'; return; }
+
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = '<span class="spinner"></span> Thinking…';
+    responseEl.className = 'response placeholder';
+    responseEl.textContent = 'Waiting for the model…';
+    responseMeta.textContent = '';
+    responseMeta.className = 'meta';
+
+    const started = performance.now();
+    try {
+      const data = await rpc('generate', { url, model, prompt });
+      responseEl.className = 'response';
+      responseEl.textContent = (data.response || '').trim() || '(empty response)';
+      const secs = ((performance.now() - started) / 1000).toFixed(1);
+      let meta = `${secs}s`;
+      if (data.evalCount) meta += ` · ${data.evalCount} tokens`;
+      responseMeta.textContent = meta;
+      setStatus('ok');
+    } catch (e) {
+      responseEl.className = 'response placeholder';
+      responseEl.textContent = 'No response.';
+      responseMeta.textContent = 'Error: ' + e.message;
+      responseMeta.className = 'meta err';
+      setStatus('err');
+    } finally {
+      sendBtn.disabled = false;
+      sendBtn.textContent = 'Send';
+    }
+  }
+
+  // ---- Copy / Clear / Close ---------------------------------------------
+  const copyBtn = $('copyBtn');
+  const copyClearBtn = $('copyClearBtn');
+  const copyCloseBtn = $('copyCloseBtn');
+  const copyFlash = $('copyFlash');
+
+  function flashCopy(msg, isErr) {
+    copyFlash.textContent = msg;
+    copyFlash.style.color = isErr ? 'var(--bad)' : 'var(--good)';
+    copyFlash.classList.add('show');
+    setTimeout(() => copyFlash.classList.remove('show'), 1400);
+  }
+
+  function responseText() {
+    return responseEl.classList.contains('placeholder') ? '' : responseEl.textContent;
+  }
+
+  async function copyResponse() {
+    const text = responseText();
+    if (!text.trim()) { flashCopy('Nothing to copy', true); return false; }
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (e) {
+      // Fallback for any clipboard-permission edge case.
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch (_) {}
+      ta.remove();
+    }
+    return true;
+  }
+
+  function clearTurn() {
+    promptInput.value = '';
+    responseEl.className = 'response placeholder';
+    responseEl.textContent = 'No response yet.';
+    responseMeta.textContent = '';
+    responseMeta.className = 'meta';
+    promptInput.focus();
+  }
+
+  copyBtn.addEventListener('click', async () => {
+    if (await copyResponse()) flashCopy('Copied');
+  });
+  copyClearBtn.addEventListener('click', async () => {
+    if (await copyResponse()) clearTurn();
+  });
+  copyCloseBtn.addEventListener('click', async () => {
+    if (await copyResponse()) { try { await rpc('closeApp'); } catch (_) {} }
+  });
+
+  // ---- Wire up -----------------------------------------------------------
+  saveBtn.addEventListener('click', saveConfig);
+  refreshBtn.addEventListener('click', loadModels);
+  sendBtn.addEventListener('click', send);
+  modelSelect.addEventListener('change', () => {
+    if (modelSelect.value) localStorage.setItem('lastModel', modelSelect.value);
+  });
+  promptInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); }
+  });
+
+  // ---- Boot --------------------------------------------------------------
+  (async function init() {
+    try {
+      const { url } = await rpc('getConfig');
+      urlInput.value = url || '';
+    } catch (e) {
+      setServerMeta('Could not read config.json: ' + e.message, true);
+    }
+    if (currentUrl()) loadModels();
+  })();
+</script>
+</body>
+</html>
