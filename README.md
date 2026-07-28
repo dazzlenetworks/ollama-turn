@@ -23,8 +23,16 @@ Helper scripts live in [`scripts/`](scripts):
 ```
 scripts\start.bat    Launch the app (builds first if needed)
 scripts\build.bat    Build the Debug configuration
+scripts\smoke.ps1    Launch the app, verify the window opened, close it
 scripts\publish.ps1  Publish a self-contained single-file release into dist\
 scripts\clean.ps1    Remove build artifacts (bin, obj, dist)
+```
+
+`smoke.ps1` is the "does it actually run?" gate — it exits `0` only if the window
+opened and the app was still up afterwards. Run it unattended with:
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke.ps1 -NoPause
 ```
 
 ## How it works

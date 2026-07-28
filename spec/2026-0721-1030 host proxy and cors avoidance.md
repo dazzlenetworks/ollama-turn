@@ -41,6 +41,9 @@ issues a cross-origin request, so CORS simply does not apply.
 - `generate` — host calls `POST /api/generate` (`stream: false`) and returns the
   response text plus a couple of stats (duration, eval count).
 - `closeApp` — host closes the window (used by "Copy & Close").
+- `ready` — the page reports that its UI has painted; the host drops a
+  per-process marker file that the smoke test watches for. See
+  [[2026-0721-1105 helper scripts and release publishing]].
 
 ## Threading and Reliability
 

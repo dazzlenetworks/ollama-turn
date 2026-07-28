@@ -45,6 +45,14 @@ namespace OllamaTurn
 
         private string ConfigPath => Path.Combine(AppContext.BaseDirectory, "config.json");
 
+        // Dropped on disk once the page has loaded and talked to the host, so an
+        // outside observer (the smoke test) can tell "window exists" apart from
+        // "the UI is actually up". Named per-process so runs can't confuse each
+        // other, and removed when the window closes.
+        private static string ReadyMarkerPath => Path.Combine(
+            Path.GetTempPath(), "OllamaTurn",
+            "ready-" + Environment.ProcessId.ToString(CultureInfo.InvariantCulture) + ".json");
+
         public MainWindow()
         {
             InitializeComponent();
@@ -104,6 +112,7 @@ namespace OllamaTurn
                     "listModels" => await ListModelsAsync(payload),
                     "generate" => await GenerateAsync(payload),
                     "export" => await ExportAsync(),
+                    "ready" => MarkReady(),
                     "closeApp" => CloseApp(),
                     _ => throw new InvalidOperationException("Unknown action: " + action)
                 };
@@ -132,6 +141,33 @@ namespace OllamaTurn
         }
 
         // ---- Handlers -------------------------------------------------------
+
+        // The page calls this once its UI is rendered and the bridge is working.
+        private object MarkReady()
+        {
+            try
+            {
+                var path = ReadyMarkerPath;
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                var json = JsonSerializer.Serialize(new
+                {
+                    pid = Environment.ProcessId,
+                    ready = Ts(DateTime.Now)
+                });
+                File.WriteAllText(path, json + Environment.NewLine);
+            }
+            catch
+            {
+                // A missing marker only costs an outside observer its signal.
+            }
+            return new { ready = true };
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            try { File.Delete(ReadyMarkerPath); } catch { }
+            base.OnClosed(e);
+        }
 
         private object CloseApp()
         {

@@ -443,6 +443,12 @@
     } catch (e) {
       setServerMeta('Could not read config.json: ' + e.message, true);
     }
+    // Tell the host the UI is up — after two frames, so this fires once the
+    // cards have actually been painted rather than merely parsed. Model
+    // loading is deliberately left until after, since it waits on the network.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      rpc('ready').catch(() => { /* the marker is only for outside observers */ });
+    }));
     if (currentUrl()) loadModels();
   })();
 </script>
