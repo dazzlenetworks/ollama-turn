@@ -195,6 +195,7 @@
         <textarea id="promptInput" placeholder="Ask something&hellip;  (Ctrl+Enter to send)"></textarea>
       </label>
       <div class="row" style="margin-top:12px; justify-content: flex-end;">
+        <button id="clearBtn" class="secondary">Clear</button>
         <button id="sendBtn">Send</button>
       </div>
     </section>
@@ -242,6 +243,7 @@
   const refreshBtn = $('refreshBtn');
   const modelSelect = $('modelSelect');
   const promptInput = $('promptInput');
+  const clearBtn = $('clearBtn');
   const sendBtn = $('sendBtn');
   const responseEl = $('response');
   const responseMeta = $('responseMeta');
@@ -382,6 +384,13 @@
     return true;
   }
 
+  // The Clear button beside Send — empties the message box only, leaving any
+  // response on screen to read while the next prompt is typed.
+  function clearPrompt() {
+    promptInput.value = '';
+    promptInput.focus();
+  }
+
   // Clears the response only — the prompt is left in place so it can be
   // tweaked and re-sent.
   function clearResponse() {
@@ -429,6 +438,7 @@
   saveBtn.addEventListener('click', saveConfig);
   refreshBtn.addEventListener('click', loadModels);
   sendBtn.addEventListener('click', send);
+  clearBtn.addEventListener('click', clearPrompt);
   modelSelect.addEventListener('change', () => {
     if (modelSelect.value) localStorage.setItem('lastModel', modelSelect.value);
   });

@@ -23,7 +23,10 @@ connection-status dot in the header.
 
 1. **Ollama server** — a URL textbox with **Save** and **Refresh models**
    buttons, plus a status/meta line and a transient "Saved" confirmation.
-2. **Prompt** — a model dropdown, a message textarea, and a **Send** button.
+2. **Prompt** — a model dropdown, a message textarea, and a **Clear** / **Send**
+   button pair. **Clear** sits to the left of **Send** and wears the same
+   `secondary` outline style as the copy buttons, so the primary blue stays on
+   the one action that costs something.
 3. **Response** — the rendered response, a stats line (elapsed time, token
    count when available), and the copy/close actions.
 
@@ -35,6 +38,10 @@ connection-status dot in the header.
   after models load, the last choice is reselected if still available.
 - **Send:** validates URL/model/prompt, shows a spinner and "Thinking…", then
   renders the response. **Ctrl+Enter** in the message box also sends.
+- **Clear:** empties the message textarea and refocuses it, leaving the response
+  on screen to read while the next prompt is typed. It is the mirror of Copy &
+  Clear, which wipes the response and leaves the prompt — between them either
+  half of a turn can be cleared without touching the other.
 - **Connection status dot:** neutral / green (ok) / red (error), reflecting the
   last server interaction.
 
