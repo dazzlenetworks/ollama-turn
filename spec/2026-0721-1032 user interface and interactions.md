@@ -43,8 +43,10 @@ connection-status dot in the header.
 Bottom of the Response card, three buttons:
 - **Copy** — copies the response text (clipboard API with an `execCommand`
   fallback) and flashes "Copied".
-- **Copy & Clear** — copies, then clears the prompt and response and refocuses
-  the message box for the next turn.
+- **Copy & Clear** — copies, then clears **only the response** and refocuses the
+  message box. The prompt is deliberately left in place: the common move after
+  reading an answer is to adjust the wording and run it again, and wiping the
+  message meant retyping it.
 - **Copy & Close** — copies, then asks the host to close the app (`closeApp`).
 
 All three guard against copying an empty/placeholder response.

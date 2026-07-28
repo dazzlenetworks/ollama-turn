@@ -382,8 +382,9 @@
     return true;
   }
 
-  function clearTurn() {
-    promptInput.value = '';
+  // Clears the response only — the prompt is left in place so it can be
+  // tweaked and re-sent.
+  function clearResponse() {
     responseEl.className = 'response placeholder';
     responseEl.textContent = 'No response yet.';
     responseMeta.textContent = '';
@@ -395,7 +396,7 @@
     if (await copyResponse()) flashCopy('Copied');
   });
   copyClearBtn.addEventListener('click', async () => {
-    if (await copyResponse()) clearTurn();
+    if (await copyResponse()) clearResponse();
   });
   copyCloseBtn.addEventListener('click', async () => {
     if (await copyResponse()) { try { await rpc('closeApp'); } catch (_) {} }
