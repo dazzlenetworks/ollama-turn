@@ -37,7 +37,12 @@ connection-status dot in the header.
 - **Remember last model:** on change the selection is saved to `localStorage`;
   after models load, the last choice is reselected if still available.
 - **Send:** validates URL/model/prompt, shows a spinner and "Thinking…", then
-  renders the response. **Ctrl+Enter** in the message box also sends.
+  renders the response.
+- **Enter sends; Shift+Enter inserts a line break.** This matches what every
+  chat client trains the fingers to expect, and prompts here are usually one
+  line. **Ctrl+Enter** still sends, so the older habit keeps working. Enter is
+  ignored while an IME composition is open, where it commits a candidate rather
+  than ending the message.
 - **Clear:** empties the message textarea and refocuses it, leaving the response
   on screen to read while the next prompt is typed. It is the mirror of Copy &
   Clear, which wipes the response and leaves the prompt — between them either

@@ -192,7 +192,7 @@
       <div style="height:12px"></div>
       <label class="field">
         <div class="lbl">Message</div>
-        <textarea id="promptInput" placeholder="Ask something&hellip;  (Ctrl+Enter to send)"></textarea>
+        <textarea id="promptInput" placeholder="Ask something&hellip;  (Enter to send, Shift+Enter for a new line)"></textarea>
       </label>
       <div class="row" style="margin-top:12px; justify-content: flex-end;">
         <button id="clearBtn" class="secondary">Clear</button>
@@ -443,7 +443,14 @@
     if (modelSelect.value) localStorage.setItem('lastModel', modelSelect.value);
   });
   promptInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); }
+    if (e.key !== 'Enter') return;
+    // Enter while an IME candidate window is open is committing text, not sending.
+    if (e.isComposing || e.keyCode === 229) return;
+    // Shift+Enter is the line break; a bare Enter sends. Ctrl+Enter keeps
+    // working so the old habit doesn't break.
+    if (e.shiftKey) return;
+    e.preventDefault();
+    send();
   });
 
   // ---- Boot --------------------------------------------------------------

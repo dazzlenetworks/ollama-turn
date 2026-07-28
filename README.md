@@ -47,7 +47,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke.ps1 -NoPause
 
 1. Confirm/enter the Ollama server URL, click **Save** (or **Refresh models**).
 2. Pick a model from the dropdown (loaded from `GET /api/tags`).
-3. Type a message and click **Send** (or press **Ctrl+Enter**).
+3. Type a message and click **Send** (or just press **Enter**; **Shift+Enter**
+   gives you a new line).
    - Uses `POST /api/generate` with `stream: false`.
 
 ## Exporting to Markdown
