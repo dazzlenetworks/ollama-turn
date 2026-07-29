@@ -12,6 +12,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- cli\ is its own project (OllamaTurnCLI); don't sweep it in here.
+         shared\ is picked up by the default glob and compiled into both. -->
+    <Compile Remove="cli\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
   </ItemGroup>
 

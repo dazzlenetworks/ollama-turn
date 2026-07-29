@@ -32,8 +32,10 @@ test → smoke test → spec → commit. This project's concrete commands are:
 
 ```text
 Build       scripts\build.bat   (or: dotnet build -c Debug)
+            plus: dotnet build cli\OllamaTurnCLI.csproj -c Debug
 Test        none — the project has no automated test suite
 Smoke test  powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke.ps1 -NoPause
+            CLI changes also warrant a real turn through OllamaTurnCLI.exe
 ```
 
 ## The Smoke Test
@@ -105,7 +107,7 @@ launches and exits quietly.
 
 ## Release Publishing
 
-`publish.ps1` runs:
+`publish.ps1` publishes **both** front ends into `dist/`. The app:
 
 ```text
 dotnet publish -c Release -r win-x64 --self-contained true \
@@ -114,14 +116,30 @@ dotnet publish -c Release -r win-x64 --self-contained true \
     -o dist
 ```
 
+then the CLI into the same folder, additionally trimmed:
+
+```text
+dotnet publish cli\OllamaTurnCLI.csproj -c Release -r win-x64 --self-contained true \
+    -p:PublishSingleFile=true \
+    -p:PublishTrimmed=true \
+    -o dist
+```
+
 Result:
-- A single, self-contained `dist/OllamaTurn.exe` (~130 MB) that runs on a
-  machine without the .NET SDK. The WebView2 Runtime is still required, but it
-  ships with modern Windows 10/11 and Edge.
+- `dist/OllamaTurn.exe` (~129 MB) and `dist/OllamaTurnCLI.exe` (~14 MB), both
+  self-contained, running on a machine without the .NET SDK. The WebView2
+  Runtime is still required for the app, but it ships with modern Windows 10/11
+  and Edge.
 - `IncludeNativeLibrariesForSelfExtract` ensures the WebView2 native loader is
   extracted at runtime; this was smoke-tested by launching the published exe.
-- `config.json` and the `www/` UI are copied alongside the exe, so the folder is
-  ready to zip and distribute (e.g. as a GitHub Release asset).
+- Trimming is applied only to the CLI. WPF does not support it, and the CLI is
+  only trim-safe because `shared/` avoids reflection-based JSON — see
+  [[2026-0728-1620 cli path for agents]].
+- `config.json` and the `www/` UI are copied alongside them, so the folder is
+  ready to zip and distribute (e.g. as a GitHub Release asset). Both exes read
+  that one `config.json`.
+
+`publish.ps1` takes `-NoPause`, like `smoke.ps1`, so it can run unattended.
 
 `dist/` is gitignored.
 

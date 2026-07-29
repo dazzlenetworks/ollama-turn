@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>OllamaTurn.Cli</RootNamespace>
+    <AssemblyName>OllamaTurnCLI</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- One implementation of config discovery and the Ollama calls, shared
+         with the WPF app so the two front ends cannot drift apart. -->
+    <Compile Include="..\shared\**\*.cs" LinkBase="shared" />
+  </ItemGroup>
+
+</Project>

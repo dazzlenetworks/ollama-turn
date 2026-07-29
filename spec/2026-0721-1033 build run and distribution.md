@@ -12,6 +12,10 @@ including the icon and repository hygiene decisions.
 ## Project Shape
 
 - WPF app targeting `net9.0-windows` (`UseWPF`), a `WinExe`.
+- A second console project, `cli/OllamaTurnCLI.csproj` (`net9.0`), producing
+  `OllamaTurnCLI.exe`. See [[2026-0728-1620 cli path for agents]].
+- `shared/` holds the code compiled into both: config discovery and the Ollama
+  calls. The WPF project excludes `cli/**` from its default glob.
 - Single NuGet dependency: `Microsoft.Web.WebView2`.
 - The `www/` folder and the template `config.json` are copied next to the exe on
   build via `PreserveNewest`.

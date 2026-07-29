@@ -3,10 +3,18 @@
 # Created 7/21/2026
 
 
+param(
+    # Skip the press-any-key tails so the script can run unattended.
+    [switch] $NoPause
+)
+
+
 
 # Welcome
-Write-Output "This script publishes Ollama Turn as a self-contained, single-file Windows executable."
-Write-Output "The result runs on a machine without the .NET SDK installed."
+Write-Output "This script publishes Ollama Turn as self-contained, single-file Windows executables:"
+Write-Output "  OllamaTurn.exe     the app window"
+Write-Output "  OllamaTurnCLI.exe  the command-line front end"
+Write-Output "The results run on a machine without the .NET SDK installed."
 Write-Output "(The WebView2 Runtime is still required, but it ships with modern Windows 10/11 and Edge.)"
 
 
@@ -19,8 +27,8 @@ $outputDir   = Join-Path $projectRoot "dist"
 
 
 
-# Publish
-Write-Output "`nPublishing $config / $runtime to:"
+# Publish the app
+Write-Output "`nPublishing the app ($config / $runtime) to:"
 Write-Output "  $outputDir"
 
 Push-Location $projectRoot
@@ -33,7 +41,31 @@ Pop-Location
 
 if ($exitCode -ne 0) {
     Write-Output "`nPublish failed (exit code $exitCode)."
-    Read-Host -Prompt "`nPress any key to continue."
+    if (-not $NoPause) { Read-Host -Prompt "`nPress any key to continue." }
+    exit $exitCode
+}
+
+
+
+# Publish the CLI into the same folder
+# Both front ends land beside one config.json, which is what the CLI reads when
+# it is run from a distributed copy.
+Write-Output "`nPublishing the CLI to the same folder..."
+
+Push-Location $projectRoot
+# Trimmed: the CLI touches no reflection-based JSON, so this is safe and takes
+# it from ~68 MB to ~14 MB. (The app itself can't be trimmed - WPF doesn't
+# support it.)
+dotnet publish "cli\OllamaTurnCLI.csproj" -c $config -r $runtime --self-contained true `
+    -p:PublishSingleFile=true `
+    -p:PublishTrimmed=true `
+    -o $outputDir
+$exitCode = $LASTEXITCODE
+Pop-Location
+
+if ($exitCode -ne 0) {
+    Write-Output "`nCLI publish failed (exit code $exitCode)."
+    if (-not $NoPause) { Read-Host -Prompt "`nPress any key to continue." }
     exit $exitCode
 }
 
@@ -41,16 +73,18 @@ if ($exitCode -ne 0) {
 
 # Summary
 Write-Output "`nSummary:"
-Write-Output "  A self-contained OllamaTurn.exe now lives in: $outputDir"
-Write-Output "  config.json and the www UI are copied alongside it, ready to zip and distribute."
+Write-Output "  Self-contained OllamaTurn.exe and OllamaTurnCLI.exe now live in: $outputDir"
+Write-Output "  config.json and the www UI are copied alongside them, ready to zip and distribute."
 
 
 
 # Confirmation
 Write-Output "`nOperation completed successfully"
 
-Read-Host -Prompt "`nPress any key to continue."
+if (-not $NoPause) {
+    Read-Host -Prompt "`nPress any key to continue."
 
-Write-Output "`nExiting in 1.5 seconds...`n"
+    Write-Output "`nExiting in 1.5 seconds...`n"
 
-Start-Sleep -s 1.5
+    Start-Sleep -s 1.5
+}

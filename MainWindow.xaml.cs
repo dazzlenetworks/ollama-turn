@@ -9,23 +9,12 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
+using OllamaTurn.Core;
 
 namespace OllamaTurn
 {
     public partial class MainWindow : Window
     {
-        private static readonly HttpClient Http = new HttpClient
-        {
-            Timeout = TimeSpan.FromMinutes(10)
-        };
-
-        private const string DefaultUrl = "http://localhost:11434/";
-
-        private static readonly JsonSerializerOptions JsonOpts = new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        };
-
         // Note Chat timestamps look like "7/21/2026, 10:25:04 AM" (en-US).
         private static readonly CultureInfo EnUs = CultureInfo.GetCultureInfo("en-US");
 
@@ -43,14 +32,10 @@ namespace OllamaTurn
         private Turn _lastTurn;
         private string _lastExportDir;
 
+        // The config this app owns: the copy next to its own exe. Reading,
+        // writing, and publishing it to the CLI's fixed path all live in
+        // TurnConfig, shared with OllamaTurnCLI.
         private string ConfigPath => Path.Combine(AppContext.BaseDirectory, "config.json");
-
-        // A copy of the config published to a fixed per-user path, so the CLI
-        // can find the server URL and the model the GUI has selected without
-        // knowing where this exe was installed.
-        private static string MirrorPath => Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "OllamaTurn", "config.json");
 
         // Dropped on disk once the page has loaded and talked to the host, so an
         // outside observer (the smoke test) can tell "window exists" apart from
@@ -230,86 +215,30 @@ namespace OllamaTurn
 
         private (string url, string model) ReadConfig()
         {
-            string url = DefaultUrl, model = "";
-            try
-            {
-                if (File.Exists(ConfigPath))
-                {
-                    using var doc = JsonDocument.Parse(File.ReadAllText(ConfigPath));
-                    url = StringOr(doc.RootElement, "url", url);
-                    model = StringOr(doc.RootElement, "model", model);
-                }
-            }
-            catch
-            {
-                // Corrupt/unreadable file — fall back to defaults, don't crash.
-            }
-            return (url, model);
-        }
-
-        private static string StringOr(JsonElement root, string name, string fallback)
-        {
-            if (root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String)
-            {
-                var val = v.GetString();
-                if (!string.IsNullOrWhiteSpace(val)) return val;
-            }
-            return fallback;
+            var cfg = TurnConfig.FromFile(ConfigPath);
+            return cfg == null
+                ? (TurnConfig.DefaultUrl, "")
+                : (cfg.Url, cfg.Model);
         }
 
         private void WriteConfig(string url, string model)
         {
-            var json = JsonSerializer.Serialize(
-                new { url, model }, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(ConfigPath, json + Environment.NewLine);
-            PublishMirror(url, model);
+            TurnConfig.Write(ConfigPath, url, model, AppContext.BaseDirectory);
         }
 
         private static void PublishMirror(string url, string model)
         {
-            try
-            {
-                var path = MirrorPath;
-                Directory.CreateDirectory(Path.GetDirectoryName(path));
-                var json = JsonSerializer.Serialize(
-                    new { url, model, source = AppContext.BaseDirectory },
-                    new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(path, json + Environment.NewLine);
-            }
-            catch
-            {
-                // The mirror is a convenience for outside callers; failing to
-                // write it leaves the app itself working normally.
-            }
+            TurnConfig.Publish(url, model, AppContext.BaseDirectory);
         }
 
         private static string BaseFrom(JsonElement payload)
         {
-            var url = payload.GetProperty("url").GetString();
-            if (string.IsNullOrWhiteSpace(url))
-                throw new InvalidOperationException("Ollama URL is not set.");
-            return url.Trim().TrimEnd('/');
+            return OllamaApi.NormalizeBase(payload.GetProperty("url").GetString());
         }
 
         private async Task<object> ListModelsAsync(JsonElement payload)
         {
-            var baseUrl = BaseFrom(payload);
-            var resp = await Http.GetAsync(baseUrl + "/api/tags");
-            var body = await resp.Content.ReadAsStringAsync();
-            if (!resp.IsSuccessStatusCode)
-                throw new InvalidOperationException($"Ollama returned {(int)resp.StatusCode}: {body}");
-
-            using var doc = JsonDocument.Parse(body);
-            var names = new System.Collections.Generic.List<string>();
-            if (doc.RootElement.TryGetProperty("models", out var models) &&
-                models.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var m in models.EnumerateArray())
-                {
-                    if (m.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
-                        names.Add(n.GetString());
-                }
-            }
+            var names = await OllamaApi.ListModelsAsync(BaseFrom(payload));
             return new { models = names };
         }
 
@@ -322,8 +251,9 @@ namespace OllamaTurn
                 throw new InvalidOperationException("No model selected.");
 
             var created = DateTime.Now;
-            var (response, totalNs, evalCount) = await RawGenerateAsync(baseUrl, model, prompt);
+            var turn = await OllamaApi.GenerateAsync(baseUrl, model, prompt);
             var updated = DateTime.Now;
+            var response = turn.Response;
 
             // Cache the turn so Export can reuse it with accurate timestamps.
             _lastTurn = new Turn
@@ -336,28 +266,7 @@ namespace OllamaTurn
                 Updated = updated
             };
 
-            return new { response, totalNs, evalCount };
-        }
-
-        // Shared POST /api/generate call, returning the text plus a couple of stats.
-        private async Task<(string response, long? totalNs, int? evalCount)> RawGenerateAsync(
-            string baseUrl, string model, string prompt)
-        {
-            var reqBody = JsonSerializer.Serialize(new { model, prompt, stream = false });
-            using var content = new StringContent(reqBody, Encoding.UTF8, "application/json");
-            var resp = await Http.PostAsync(baseUrl + "/api/generate", content);
-            var body = await resp.Content.ReadAsStringAsync();
-            if (!resp.IsSuccessStatusCode)
-                throw new InvalidOperationException($"Ollama returned {(int)resp.StatusCode}: {body}");
-
-            using var doc = JsonDocument.Parse(body);
-            var root = doc.RootElement;
-            var response = root.TryGetProperty("response", out var r) ? r.GetString() : "";
-            long? totalNs = root.TryGetProperty("total_duration", out var td) &&
-                            td.ValueKind == JsonValueKind.Number ? td.GetInt64() : (long?)null;
-            int? evalCount = root.TryGetProperty("eval_count", out var ec) &&
-                             ec.ValueKind == JsonValueKind.Number ? ec.GetInt32() : (int?)null;
-            return (response, totalNs, evalCount);
+            return new { response, totalNs = turn.TotalNs, evalCount = turn.EvalCount };
         }
 
         // ---- Export ---------------------------------------------------------
@@ -439,7 +348,8 @@ namespace OllamaTurn
                     "Reply with only the title.\n\n" +
                     "User: " + t.Prompt + "\n\nAssistant: " + t.Response;
 
-                var (raw, _, _) = await RawGenerateAsync(t.BaseUrl, t.Model, prompt);
+                var titled = await OllamaApi.GenerateAsync(t.BaseUrl, t.Model, prompt);
+                var raw = titled.Response;
                 var title = Regex.Replace((raw ?? "").Trim().Trim('"', '\'', '.'), @"\s+", " ").Trim();
                 if (title.Length > 70) title = title.Substring(0, 70).Trim();
                 return string.IsNullOrWhiteSpace(title) ? FallbackTitle(t) : title;

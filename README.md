@@ -4,7 +4,7 @@ A tiny Windows desktop app for doing a **single request → single response** tu
 
 It also **exports turns to Markdown** in a clean, frontmatter'd format — and can **append** successive turns to the same file, so a deliberately single-turn app doubles as a multi-turn transcript builder.
 
-And it comes with a **CLI** that gives scripts and coding agents local inference with zero configuration of their own: `ollama-turn "your prompt"` uses whatever server and model the app is set to. [Jump to the CLI](#cli-zero-config-inference-for-agents-and-scripts).
+And it ships a second executable, **`OllamaTurnCLI.exe`**, that gives scripts and coding agents local inference with zero configuration of their own: `OllamaTurnCLI "your prompt"` uses whatever server and model the app is set to. [Jump to the CLI](#cli-zero-config-inference-for-agents-and-scripts).
 
 ![Ollama Turn — the app window showing the server, prompt, and response cards](docs/screenshot.png)
 
@@ -20,11 +20,12 @@ dotnet run -c Debug
 
 ## CLI: zero-config inference for agents and scripts
 
-Run a turn from the command line against **whatever server and model the app is
-currently set to** — nothing to configure, no flags to remember:
+`OllamaTurnCLI.exe` runs a turn from the command line against **whatever server
+and model the app is currently set to** — nothing to configure, no flags to
+remember:
 
 ```
-scripts\ollama-turn.cmd "why is the sky blue?"
+OllamaTurnCLI "why is the sky blue?"
 ```
 
 ```
@@ -36,7 +37,7 @@ so it pipes and captures cleanly; anything that goes wrong goes to stderr with
 exit code `1`. The prompt can arrive on stdin instead:
 
 ```
-type notes.md | scripts\ollama-turn.cmd
+type notes.md | OllamaTurnCLI
 ```
 
 **Why it needs no configuration:** the app publishes its live settings — the
@@ -52,17 +53,19 @@ otherwise the CLI lists what's available and stops rather than guessing.
 Overrides, when you do want them:
 
 ```
--Model <name>    Use a specific model instead of the published one
--Url <url>       Point at a different Ollama server
--System <text>   Prepend a system prompt
--TimeoutSec <n>  Request timeout (default 600)
--Json            Emit the raw Ollama response (timings, token counts)
--ListModels      List the models installed on the server
--ShowConfig      Show the resolved URL, model, and where they came from
+-m, --model <name>    Use a specific model instead of the published one
+    --url <url>       Point at a different Ollama server
+-s, --system <text>   Prepend a system prompt
+-t, --timeout <sec>   Request timeout (default 600)
+    --json            Emit the raw Ollama response (timings, token counts)
+    --list-models     List the models installed on the server
+    --show-config     Show the resolved URL, model, and where they came from
+-h, --help            Show usage
 ```
 
-`scripts\ollama-turn.ps1` is the implementation; the `.cmd` shim exists so any
-shell can call it without worrying about PowerShell's execution policy.
+It's a real console executable, published beside `OllamaTurn.exe` in `dist\` and
+self-contained, so a release folder gives you both front ends with nothing to
+install. Put that folder on your PATH and `OllamaTurnCLI` works from anywhere.
 
 ## Scripts
 
@@ -72,8 +75,7 @@ Helper scripts live in [`scripts/`](scripts):
 scripts\start.bat      Launch the app (builds first if needed)
 scripts\build.bat      Build the Debug configuration
 scripts\smoke.ps1      Launch the app, verify the window opened, close it
-scripts\ollama-turn.*  CLI: run a turn from the command line (see above)
-scripts\publish.ps1    Publish a self-contained single-file release into dist\
+scripts\publish.ps1    Publish both self-contained exes into dist\
 scripts\clean.ps1      Remove build artifacts (bin, obj, dist)
 ```
 
@@ -88,6 +90,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke.ps1 -NoPause
 
 - The app is a small WPF host around a **WebView2** control. The UI lives in [`www/index.html`](www/index.html).
 - The **C# host** (not the browser page) makes the HTTP calls to Ollama, so there is **no CORS** to configure — you do **not** need `OLLAMA_ORIGINS`.
+- The window and the CLI are two front ends over one core: config discovery and the Ollama calls live in [`shared/`](shared) and are compiled into both, so they can't drift apart.
 - The Ollama URL and the selected model are stored in **`config.json`** sitting next to the exe. The textbox + **Save** button writes to that real file on disk, and picking a model in the dropdown updates it too.
   - Default: `http://localhost:11434/` (point it at your own Ollama host, local or on the network).
   - You can edit `config.json` directly in Notepad, or change it in the app.
@@ -135,11 +138,13 @@ Because shorter (blue) wavelengths scatter more in the atmosphere…
 ## Files
 
 ```
-scripts/             Launch, build, smoke test, CLI, publish, and clean helpers
-OllamaTurn.csproj    WPF + WebView2 project
+scripts/             Launch, build, smoke test, publish, and clean helpers
+OllamaTurn.csproj    WPF + WebView2 project (the app window)
 App.xaml(.cs)        App entry
 MainWindow.xaml(.cs) WebView2 host + config I/O + Ollama proxy + Markdown export
 www/index.html       The UI (HTML/CSS/JS, self-contained)
+shared/              Config discovery + Ollama calls, compiled into both exes
+cli/                 OllamaTurnCLI project: the command-line front end
 config.json          { "url": "http://localhost:11434/" } — the app adds "model"
 spec/                Design notes: the build story, the export format, the CLI
 ```
