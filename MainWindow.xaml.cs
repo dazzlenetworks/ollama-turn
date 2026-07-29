@@ -45,6 +45,13 @@ namespace OllamaTurn
 
         private string ConfigPath => Path.Combine(AppContext.BaseDirectory, "config.json");
 
+        // A copy of the config published to a fixed per-user path, so the CLI
+        // can find the server URL and the model the GUI has selected without
+        // knowing where this exe was installed.
+        private static string MirrorPath => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "OllamaTurn", "config.json");
+
         // Dropped on disk once the page has loaded and talked to the host, so an
         // outside observer (the smoke test) can tell "window exists" apart from
         // "the UI is actually up". Named per-process so runs can't confuse each
@@ -109,6 +116,7 @@ namespace OllamaTurn
                 {
                     "getConfig" => GetConfig(),
                     "saveConfig" => SaveConfig(payload),
+                    "saveModel" => SaveModel(payload),
                     "listModels" => await ListModelsAsync(payload),
                     "generate" => await GenerateAsync(payload),
                     "export" => await ExportAsync(),
@@ -178,31 +186,26 @@ namespace OllamaTurn
 
         private object GetConfig()
         {
-            string url = DefaultUrl;
+            var (url, model) = ReadConfig();
             try
             {
                 if (File.Exists(ConfigPath))
                 {
-                    var txt = File.ReadAllText(ConfigPath);
-                    using var doc = JsonDocument.Parse(txt);
-                    if (doc.RootElement.TryGetProperty("url", out var u) &&
-                        u.ValueKind == JsonValueKind.String)
-                    {
-                        var val = u.GetString();
-                        if (!string.IsNullOrWhiteSpace(val)) url = val;
-                    }
+                    // Republish on launch so the CLI follows the install that
+                    // was most recently used.
+                    PublishMirror(url, model);
                 }
                 else
                 {
                     // First run — write the default so the file exists on disk.
-                    WriteConfig(url);
+                    WriteConfig(url, model);
                 }
             }
             catch
             {
-                // Corrupt/unreadable file — fall back to default, don't crash.
+                // Config housekeeping must never stop the app from starting.
             }
-            return new { url };
+            return new { url, model };
         }
 
         private object SaveConfig(JsonElement payload)
@@ -210,16 +213,74 @@ namespace OllamaTurn
             var url = payload.GetProperty("url").GetString();
             if (string.IsNullOrWhiteSpace(url))
                 throw new InvalidOperationException("URL cannot be empty.");
-            url = url.Trim();
-            WriteConfig(url);
-            return new { url };
+            WriteConfig(url.Trim(), ReadConfig().model);
+            return new { url = url.Trim() };
         }
 
-        private void WriteConfig(string url)
+        // The model picked in the dropdown is written through to config.json so
+        // the CLI can run turns against it without being told which one.
+        private object SaveModel(JsonElement payload)
+        {
+            var model = payload.GetProperty("model").GetString();
+            if (string.IsNullOrWhiteSpace(model))
+                throw new InvalidOperationException("Model cannot be empty.");
+            WriteConfig(ReadConfig().url, model.Trim());
+            return new { model = model.Trim() };
+        }
+
+        private (string url, string model) ReadConfig()
+        {
+            string url = DefaultUrl, model = "";
+            try
+            {
+                if (File.Exists(ConfigPath))
+                {
+                    using var doc = JsonDocument.Parse(File.ReadAllText(ConfigPath));
+                    url = StringOr(doc.RootElement, "url", url);
+                    model = StringOr(doc.RootElement, "model", model);
+                }
+            }
+            catch
+            {
+                // Corrupt/unreadable file — fall back to defaults, don't crash.
+            }
+            return (url, model);
+        }
+
+        private static string StringOr(JsonElement root, string name, string fallback)
+        {
+            if (root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String)
+            {
+                var val = v.GetString();
+                if (!string.IsNullOrWhiteSpace(val)) return val;
+            }
+            return fallback;
+        }
+
+        private void WriteConfig(string url, string model)
         {
             var json = JsonSerializer.Serialize(
-                new { url }, new JsonSerializerOptions { WriteIndented = true });
+                new { url, model }, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(ConfigPath, json + Environment.NewLine);
+            PublishMirror(url, model);
+        }
+
+        private static void PublishMirror(string url, string model)
+        {
+            try
+            {
+                var path = MirrorPath;
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                var json = JsonSerializer.Serialize(
+                    new { url, model, source = AppContext.BaseDirectory },
+                    new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(path, json + Environment.NewLine);
+            }
+            catch
+            {
+                // The mirror is a convenience for outside callers; failing to
+                // write it leaves the app itself working normally.
+            }
         }
 
         private static string BaseFrom(JsonElement payload)

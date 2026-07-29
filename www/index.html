@@ -260,6 +260,18 @@
     serverMeta.className = 'meta' + (isErr ? ' err' : '');
   }
 
+  // ---- Model selection ---------------------------------------------------
+  // config.json is the single source of truth for the selection: the host
+  // writes it, the CLI reads it, and it can be edited by hand. Nothing is kept
+  // in localStorage, which nothing outside the WebView could see anyway.
+  let lastModel = '';
+
+  function rememberModel(name) {
+    if (!name || name === lastModel) return;
+    lastModel = name;
+    rpc('saveModel', { model: name }).catch(() => { /* non-fatal */ });
+  }
+
   // ---- Model loading -----------------------------------------------------
   async function loadModels() {
     const url = currentUrl();
@@ -281,9 +293,10 @@
         opt.value = name; opt.textContent = name;
         modelSelect.appendChild(opt);
       }
-      // Restore the last-used model if it's still available.
-      const last = localStorage.getItem('lastModel');
-      if (last && models.includes(last)) modelSelect.value = last;
+      // Restore the model from config.json if it's still installed.
+      if (lastModel && models.includes(lastModel)) modelSelect.value = lastModel;
+      // Whatever ends up selected is what the CLI should use, so publish it.
+      if (modelSelect.value) rememberModel(modelSelect.value);
       setServerMeta(`Connected · ${models.length} model${models.length === 1 ? '' : 's'}`);
       setStatus('ok');
     } catch (e) {
@@ -440,7 +453,7 @@
   sendBtn.addEventListener('click', send);
   clearBtn.addEventListener('click', clearPrompt);
   modelSelect.addEventListener('change', () => {
-    if (modelSelect.value) localStorage.setItem('lastModel', modelSelect.value);
+    if (modelSelect.value) rememberModel(modelSelect.value);
   });
   promptInput.addEventListener('keydown', e => {
     if (e.key !== 'Enter') return;
@@ -456,8 +469,9 @@
   // ---- Boot --------------------------------------------------------------
   (async function init() {
     try {
-      const { url } = await rpc('getConfig');
-      urlInput.value = url || '';
+      const cfg = await rpc('getConfig');
+      urlInput.value = cfg.url || '';
+      lastModel = cfg.model || '';
     } catch (e) {
       setServerMeta('Could not read config.json: ' + e.message, true);
     }

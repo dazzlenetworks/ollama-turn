@@ -34,8 +34,9 @@ connection-status dot in the header.
 
 - **Model dropdown** is populated from `GET /api/tags`. A custom SVG chevron is
   drawn on the right because native appearance is suppressed for styling.
-- **Remember last model:** on change the selection is saved to `localStorage`;
-  after models load, the last choice is reselected if still available.
+- **Remember last model:** on change the selection is saved to `config.json`
+  through the host; after models load, that choice is reselected if still
+  available. See [[2026-0721-1031 configuration storage model]].
 - **Send:** validates URL/model/prompt, shows a spinner and "Thinking…", then
   renders the response.
 - **Enter sends; Shift+Enter inserts a line break.** This matches what every

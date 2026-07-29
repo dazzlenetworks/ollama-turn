@@ -19,7 +19,7 @@ host solved this: the C# side has normal filesystem access.
 
 ## Storage Design
 
-- The URL is stored in **`config.json`** as `{ "url": "..." }`.
+- The settings live in **`config.json`** as `{ "url": "...", "model": "..." }`.
 - The file the app actually reads and writes at runtime is the copy **next to the
   exe** (`AppContext.BaseDirectory`), i.e. `bin\...\config.json`.
 - The in-app textbox + **Save** button writes to that real file; the file can
@@ -33,6 +33,13 @@ host solved this: the C# side has normal filesystem access.
   neutral default of `http://localhost:11434/`.
 - The build copies it to the output directory (`PreserveNewest`) so a fresh
   checkout runs sensibly, without clobbering a user's edited runtime copy.
+- **Do not edit the tracked template casually.** `PreserveNewest` protects the
+  runtime copy only while the template stays older than it. Touching the
+  template makes it newer, and the next build overwrites the user's real
+  settings with the committed `localhost` default. This was learned the hard
+  way: adding a cosmetic `"model": ""` key to the template silently reset a
+  working server URL. New keys need no template entry — a missing key already
+  falls back to its default.
 - The runtime copy under `bin/` is **gitignored**, so a user's real server URL
   never ends up in version control.
 
@@ -45,9 +52,34 @@ real server URL lives only in the local, gitignored runtime copy.
 
 ## Model Selection Persistence
 
-The last-used model is remembered in the page's `localStorage` (persisted by
-WebView2's user-data folder) and re-selected on load if still installed. See
-[[2026-0721-1032 user interface and interactions]].
+`config.json` is the **single source of truth** for the selected model. The page
+calls a `saveModel` action whenever the dropdown changes, and again once the
+model list has loaded; on load the model named in the file is re-selected if it
+is still installed.
+
+The selection previously lived in the page's `localStorage`. That was abandoned,
+not merely demoted: WebView2's user-data folder is not somewhere another program
+can read, so the choice was invisible to the CLI (see
+[[2026-0728-1620 cli path for agents]]). Keeping both would have meant two
+sources of truth, with the stale one able to win — a hand-edited `config.json`
+could be silently overridden by a leftover `localStorage` value.
+
+The one-time cost of dropping it: on the first launch after the change, the
+dropdown falls back to the first installed model instead of the last one used,
+and immediately writes that choice to `config.json`.
+
+## The Published Mirror
+
+Every config write also publishes `{ url, model, source }` to
+**`%APPDATA%\OllamaTurn\config.json`**, and the app republishes it on launch.
+This is a one-directional publication for outside callers — the app never reads
+it back, and a failure to write it leaves the app working normally. `source`
+records which install produced it, so it is clear whose settings these are when
+both a `dist\` copy and a `bin\` copy exist.
+
+The runtime `config.json` next to the exe remains the app's own source of truth;
+the mirror exists because outside callers cannot be expected to know where that
+exe lives.
 
 ## Related
 

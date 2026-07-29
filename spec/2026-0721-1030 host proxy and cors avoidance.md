@@ -37,6 +37,8 @@ issues a cross-origin request, so CORS simply does not apply.
 ### Actions
 
 - `getConfig` / `saveConfig` — read/write the URL in `config.json`.
+- `saveModel` — record the selected model in `config.json` so the CLI can use
+  it. See [[2026-0728-1620 cli path for agents]].
 - `listModels` — host calls `GET /api/tags` and returns model names.
 - `generate` — host calls `POST /api/generate` (`stream: false`) and returns the
   response text plus a couple of stats (duration, eval count).
