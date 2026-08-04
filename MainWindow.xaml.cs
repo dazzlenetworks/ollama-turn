@@ -32,9 +32,8 @@ namespace OllamaTurn
         private Turn _lastTurn;
         private string _lastExportDir;
 
-        // The config this app owns: the copy next to its own exe. Reading,
-        // writing, and publishing it to the CLI's fixed path all live in
-        // TurnConfig, shared with OllamaTurnCLI.
+        // The one config file, sitting next to the exe. OllamaTurnCLI reads
+        // this same file; reading and writing it live in the shared TurnConfig.
         private string ConfigPath => Path.Combine(AppContext.BaseDirectory, "config.json");
 
         // Dropped on disk once the page has loaded and talked to the host, so an
@@ -174,17 +173,8 @@ namespace OllamaTurn
             var (url, model) = ReadConfig();
             try
             {
-                if (File.Exists(ConfigPath))
-                {
-                    // Republish on launch so the CLI follows the install that
-                    // was most recently used.
-                    PublishMirror(url, model);
-                }
-                else
-                {
-                    // First run — write the default so the file exists on disk.
-                    WriteConfig(url, model);
-                }
+                // First run — write the default so the file exists on disk.
+                if (!File.Exists(ConfigPath)) WriteConfig(url, model);
             }
             catch
             {
@@ -223,12 +213,7 @@ namespace OllamaTurn
 
         private void WriteConfig(string url, string model)
         {
-            TurnConfig.Write(ConfigPath, url, model, AppContext.BaseDirectory);
-        }
-
-        private static void PublishMirror(string url, string model)
-        {
-            TurnConfig.Publish(url, model, AppContext.BaseDirectory);
+            TurnConfig.Write(ConfigPath, url, model);
         }
 
         private static string BaseFrom(JsonElement payload)

@@ -29,18 +29,16 @@ The server URL already lived in a real file (`config.json`, see
 only ever kept in the page's `localStorage`, inside WebView2's user-data folder.
 Nothing outside the app could read it. Two changes fixed that:
 
-1. **The model is persisted to `config.json`.** The page calls a new `saveModel`
-   action whenever the dropdown changes, and once more after the model list
-   loads, so the file always names the model actually in use. `localStorage` was
-   dropped outright rather than kept as a fallback, leaving one source of truth.
-2. **The config is published to a fixed path.** Every write also mirrors
-   `{ url, model, source }` to `%APPDATA%\OllamaTurn\config.json`, and the app
-   republishes it on launch. `source` records which install wrote it.
+**The model is persisted to `config.json`.** The page calls a `saveModel` action
+whenever the dropdown changes, and once more after the model list loads, so the
+file always names the model actually in use. `localStorage` was dropped outright
+rather than kept as a fallback, leaving one source of truth.
 
-The mirror is what makes "zero knowledge" possible: the caller does not need to
-know whether the app is running from `bin\Debug\...`, from `dist\`, or from
-wherever a release was unzipped. The app never reads the mirror — it is a
-publication, one-directional, and the app is unaffected if it can't be written.
+What makes "zero knowledge" work is that the CLI ships in the same folder as the
+app, so `config.json` is simply the file beside its own exe. An intermediate
+design published a copy of the settings to `%APPDATA%` so a caller need not know
+the install location; that copy went stale and was removed. See
+[[2026-0721-1031 configuration storage model]].
 
 ## Shape: A Second Executable
 
@@ -94,15 +92,13 @@ trimmed — WPF doesn't support it.
 
 First usable candidate wins:
 
-1. `%OLLAMA_TURN_CONFIG%`, for a caller that wants to pin one explicitly
-2. `%APPDATA%\OllamaTurn\config.json` — the mirror, i.e. the live settings of
-   whichever install ran most recently
-3. `config.json` sitting beside the CLI exe — a distributed `dist\` folder
-4. failing all that, `http://localhost:11434/`
+1. `%OLLAMA_TURN_CONFIG%`, for a caller that wants to pin one file explicitly
+2. `config.json` beside the CLI exe — the normal case, since both executables
+   ship in one folder
+3. failing that, `http://localhost:11434/`
 
-The mirror deliberately outranks the sibling file: the promise is "the model the
-app has selected", and the mirror is the one that tracks the running app. The
-sibling covers a release folder whose app has never been launched.
+An unreadable or URL-less file is treated as absent, so a corrupt config falls
+through to the next candidate rather than failing the run.
 
 ### When No Model Is Configured
 

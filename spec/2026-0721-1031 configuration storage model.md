@@ -68,18 +68,40 @@ The one-time cost of dropping it: on the first launch after the change, the
 dropdown falls back to the first installed model instead of the last one used,
 and immediately writes that choice to `config.json`.
 
-## The Published Mirror
+## One File, No Copies
 
-Every config write also publishes `{ url, model, source }` to
-**`%APPDATA%\OllamaTurn\config.json`**, and the app republishes it on launch.
-This is a one-directional publication for outside callers — the app never reads
-it back, and a failure to write it leaves the app working normally. `source`
-records which install produced it, so it is clear whose settings these are when
-both a `dist\` copy and a `bin\` copy exist.
+`config.json` next to the executables is the **only** place settings live. The
+app writes it, `OllamaTurnCLI.exe` reads it from its own folder, and a person can
+edit it in Notepad. Discovery for both front ends is:
 
-The runtime `config.json` next to the exe remains the app's own source of truth;
-the mirror exists because outside callers cannot be expected to know where that
-exe lives.
+1. `%OLLAMA_TURN_CONFIG%`, when a caller wants to pin one file
+2. `config.json` beside the executable
+3. the built-in `http://localhost:11434/`
+
+### The Mirror That Was Removed
+
+An earlier version of this feature copied `{ url, model, source }` to
+`%APPDATA%\OllamaTurn\config.json` on every write, so a caller that didn't know
+where the app was installed could still find the settings. It was removed.
+
+The reasoning: `OllamaTurnCLI.exe` ships **in the same folder as the app**, so it
+already knows where the config is — `AppContext.BaseDirectory`. The mirror only
+earned its keep in a split that development created (app running from `bin\`,
+CLI invoked from `dist\`), not in any real install.
+
+What it cost was worse than what it bought. A copy of data can go stale, and it
+did: with the project folder synced between two machines, the synced
+`config.json` said one model while the un-synced per-machine mirror said another,
+and the mirror outranked the file. The CLI confidently used the wrong model.
+
+A copy of the settings can disagree with the settings. One file cannot.
+
+The trade accepted: copying `OllamaTurnCLI.exe` on its own to somewhere outside
+the app folder leaves it with nothing to read, and it falls back to the default.
+The answer is to put the app's folder on `PATH` rather than move the exe out of
+it, or to set `OLLAMA_TURN_CONFIG`. If "the exe works anywhere" is ever wanted,
+the honest form is a *pointer* file naming the install directory — never a second
+copy of the values.
 
 ## Related
 

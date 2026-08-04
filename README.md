@@ -40,12 +40,14 @@ exit code `1`. The prompt can arrive on stdin instead:
 type notes.md | OllamaTurnCLI
 ```
 
-**Why it needs no configuration:** the app publishes its live settings — the
-server URL *and* the model selected in the dropdown — to
-`%APPDATA%\OllamaTurn\config.json` every time either changes. The CLI reads that,
-so a caller needs to know nothing about where the app is installed or which model
-you're on. Switch models in the dropdown and the next CLI call follows you. The
-app doesn't have to be running.
+**Why it needs no configuration:** there is exactly one `config.json`, and it
+sits next to the two executables. The app writes the server URL and the selected
+model into it; the CLI reads that same file from its own folder. Switch models in
+the dropdown and the next CLI call follows you. The app doesn't have to be
+running, and nothing is copied anywhere else to fall out of sync.
+
+To run the CLI from a different folder, set `OLLAMA_TURN_CONFIG` to the config
+file you want it to use — that takes precedence over everything else.
 
 If no model has been selected yet, one installed model is used automatically;
 otherwise the CLI lists what's available and stops rather than guessing.
@@ -94,7 +96,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke.ps1 -NoPause
 - The Ollama URL and the selected model are stored in **`config.json`** sitting next to the exe. The textbox + **Save** button writes to that real file on disk, and picking a model in the dropdown updates it too.
   - Default: `http://localhost:11434/` (point it at your own Ollama host, local or on the network).
   - You can edit `config.json` directly in Notepad, or change it in the app.
-  - A copy is published to `%APPDATA%\OllamaTurn\config.json` for the CLI to read; the app never reads it back.
+  - `OllamaTurnCLI.exe` reads the very same file from its own folder — one file, no copies.
 
 ## Using it
 

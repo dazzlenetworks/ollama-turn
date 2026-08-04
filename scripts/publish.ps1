@@ -71,6 +71,22 @@ if ($exitCode -ne 0) {
 
 
 
+# Make sure the release folder has a config.json
+# Both exes read the one sitting beside them, and publishing the second project
+# into this folder can drop the copy the first one put there. Seed it from the
+# project default when it is missing, and never overwrite a real one.
+$distConfig = Join-Path $outputDir "config.json"
+Write-Output "`nChecking the release config..."
+
+if (Test-Path $distConfig) {
+    Write-Output "  Kept the existing $distConfig"
+} else {
+    Copy-Item (Join-Path $projectRoot "config.json") $distConfig
+    Write-Output "  Seeded $distConfig from the project default."
+}
+
+
+
 # Summary
 Write-Output "`nSummary:"
 Write-Output "  Self-contained OllamaTurn.exe and OllamaTurnCLI.exe now live in: $outputDir"

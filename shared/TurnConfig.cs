@@ -7,9 +7,10 @@ namespace OllamaTurn.Core
 {
     // The settings both front ends work from: which server, which model.
     //
-    // The window owns the config file next to its exe. The CLI only reads, and
-    // finds its settings through Discover() so a caller needs to know nothing
-    // about where anything is installed.
+    // There is exactly one config.json, and it sits next to the executables.
+    // The window writes it, the CLI reads it, and it can be edited by hand.
+    // Nothing is copied anywhere else: a second copy could only ever go stale
+    // and start disagreeing with this one.
     //
     // Everything here uses Utf8JsonWriter and JsonDocument rather than
     // reflection-based serialization, so the CLI can be published trimmed.
@@ -26,11 +27,8 @@ namespace OllamaTurn.Core
 
         private static readonly UTF8Encoding Utf8NoBom = new UTF8Encoding(false);
 
-        // The fixed per-user path the app publishes to. This is what makes the
-        // CLI zero-config: one location, regardless of install.
-        public static string MirrorPath => Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "OllamaTurn", "config.json");
+        // Set this to point either front end at a specific config file.
+        public const string PathVariable = "OLLAMA_TURN_CONFIG";
 
         // Reads a config file. Returns null when it is missing, unreadable, or
         // has no usable URL, so callers can simply try the next candidate.
@@ -59,16 +57,15 @@ namespace OllamaTurn.Core
         }
 
         // First usable candidate wins:
-        //   1. OLLAMA_TURN_CONFIG, for callers that want to pin one explicitly
-        //   2. the published mirror — the live settings of whichever app ran last
-        //   3. a config.json sitting beside the caller (a dist\ install)
-        //   4. the built-in default
+        //   1. OLLAMA_TURN_CONFIG, for a caller that wants to pin one file
+        //   2. config.json beside the executable — the normal case, since the
+        //      app and the CLI ship in the same folder
+        //   3. the built-in default
         public static TurnConfig Discover(string exeDirectory)
         {
             var candidates = new[]
             {
-                Environment.GetEnvironmentVariable("OLLAMA_TURN_CONFIG"),
-                MirrorPath,
+                Environment.GetEnvironmentVariable(PathVariable),
                 string.IsNullOrEmpty(exeDirectory) ? null : Path.Combine(exeDirectory, "config.json")
             };
 
@@ -81,31 +78,12 @@ namespace OllamaTurn.Core
             return new TurnConfig();
         }
 
-        // Writes the app's own config file, then republishes the mirror so
-        // outside callers see the change immediately.
-        public static void Write(string path, string url, string model, string source)
+        public static void Write(string path, string url, string model)
         {
-            File.WriteAllText(path, Serialize(url, model, null), Utf8NoBom);
-            Publish(url, model, source);
+            File.WriteAllText(path, Serialize(url, model), Utf8NoBom);
         }
 
-        // The mirror is a one-directional publication: the app never reads it
-        // back, and failing to write it leaves the app working normally.
-        public static void Publish(string url, string model, string source)
-        {
-            try
-            {
-                var path = MirrorPath;
-                Directory.CreateDirectory(Path.GetDirectoryName(path));
-                File.WriteAllText(path, Serialize(url, model, source), Utf8NoBom);
-            }
-            catch
-            {
-                // Only costs an outside caller its shortcut.
-            }
-        }
-
-        private static string Serialize(string url, string model, string source)
+        private static string Serialize(string url, string model)
         {
             using var stream = new MemoryStream();
             using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
@@ -113,7 +91,6 @@ namespace OllamaTurn.Core
                 writer.WriteStartObject();
                 writer.WriteString("url", url ?? "");
                 writer.WriteString("model", model ?? "");
-                if (source != null) writer.WriteString("source", source);
                 writer.WriteEndObject();
             }
             return Utf8NoBom.GetString(stream.ToArray()) + Environment.NewLine;

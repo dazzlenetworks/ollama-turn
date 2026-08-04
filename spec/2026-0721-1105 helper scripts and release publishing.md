@@ -137,7 +137,10 @@ Result:
   [[2026-0728-1620 cli path for agents]].
 - `config.json` and the `www/` UI are copied alongside them, so the folder is
   ready to zip and distribute (e.g. as a GitHub Release asset). Both exes read
-  that one `config.json`.
+  that one `config.json`, so the release folder must always contain one.
+- Publishing a second project into the same folder can remove the `config.json`
+  the first one placed there, so the script re-seeds it from the project default
+  afterwards **only when it is missing** — never overwriting a configured file.
 
 `publish.ps1` takes `-NoPause`, like `smoke.ps1`, so it can run unattended.
 
