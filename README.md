@@ -62,6 +62,8 @@ OllamaTurnCLI --set-model mistral:7b
 
 `--set-model` is checked against what's actually installed and refuses a name the
 server doesn't have, so a typo can't sit in the config breaking every later run.
+If the app happens to be open, it notices and updates its dropdown live — no
+restart needed.
 
 Full set of options:
 

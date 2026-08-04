@@ -78,6 +78,29 @@ edit it in Notepad. Discovery for both front ends is:
 2. `config.json` beside the executable
 3. the built-in `http://localhost:11434/`
 
+### The App Follows External Changes
+
+Because the file is shared — the CLI's `--set-model`, a text editor, another
+machine's file sync — a running window would otherwise sit on settings that are
+no longer true. The host watches `config.json` with a `FileSystemWatcher` and
+pushes a `configChanged` event to the page, which updates the URL box and the
+model dropdown and flashes "Updated from config.json".
+
+Three details make this behave:
+
+- **Settling.** A save is rarely one event: editors write, truncate and rename,
+  and a sync can land a file in pieces. Events restart a 400 ms timer and the
+  file is read once, after the noise stops.
+- **No echo.** The host records what the page already knows on every read and
+  write, and only raises the event when the file differs. Without that, the
+  app's own saves would come straight back as "the config changed".
+- **No write-back.** The page assigns `.value` directly, which does not fire a
+  `change` event, and sets its remembered model first — so following a change
+  cannot bounce a save at the host and start a loop.
+
+A half-written file simply reads as unusable and is skipped; the next settled
+event picks up the finished version.
+
 ### The Mirror That Was Removed
 
 An earlier version of this feature copied `{ url, model, source }` to

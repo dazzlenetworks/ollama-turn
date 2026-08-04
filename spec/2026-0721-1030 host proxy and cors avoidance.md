@@ -34,6 +34,15 @@ issues a cross-origin request, so CORS simply does not apply.
 - The page keeps a map of pending promises keyed by `id` and resolves/rejects
   them when the matching reply arrives.
 
+### Events
+
+Replies carry the `id` of the request they answer. The host can also push
+**unsolicited** messages, which carry `{ event, data }` and no `id`; the page
+checks for `event` before looking up a pending promise.
+
+- `configChanged` — `config.json` changed on disk. See
+  [[2026-0721-1031 configuration storage model]].
+
 ### Actions
 
 - `getConfig` / `saveConfig` — read/write the URL in `config.json`.

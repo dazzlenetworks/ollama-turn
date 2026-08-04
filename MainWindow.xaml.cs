@@ -32,6 +32,17 @@ namespace OllamaTurn
         private Turn _lastTurn;
         private string _lastExportDir;
 
+        // Config file watching. The CLI (or a file sync from another machine)
+        // can change config.json underneath a running window, so the page is
+        // told about it rather than showing stale settings until a restart.
+        //
+        // _lastSeen is what the page already knows. Updating it on every read
+        // and write is what stops this app's own saves from bouncing back as
+        // "the config changed".
+        private FileSystemWatcher _configWatcher;
+        private System.Windows.Threading.DispatcherTimer _configSettle;
+        private (string url, string model) _lastSeen;
+
         // The one config file, sitting next to the exe. OllamaTurnCLI reads
         // this same file; reading and writing it live in the shared TurnConfig.
         private string ConfigPath => Path.Combine(AppContext.BaseDirectory, "config.json");
@@ -76,12 +87,86 @@ namespace OllamaTurn
                 core.WebMessageReceived += OnWebMessage;
 
                 core.Navigate("https://ollamaturn.app/index.html");
+
+                WatchConfig();
             }
             catch (Exception ex)
             {
                 MessageBox.Show(
                     "Failed to start the WebView2 host:\n\n" + ex.Message,
                     "Ollama Turn", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // ---- Watching config.json -------------------------------------------
+
+        private void WatchConfig()
+        {
+            try
+            {
+                // A save is rarely one event: editors write, truncate and
+                // rename, and a file sync can land a file in pieces. Wait for
+                // the noise to stop before reading, and read once.
+                _configSettle = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(400)
+                };
+                _configSettle.Tick += (s, e) =>
+                {
+                    _configSettle.Stop();
+                    PushConfigIfChanged();
+                };
+
+                _configWatcher = new FileSystemWatcher(
+                    Path.GetDirectoryName(ConfigPath), "config.json")
+                {
+                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size |
+                                   NotifyFilters.FileName | NotifyFilters.CreationTime
+                };
+
+                _configWatcher.Changed += OnConfigTouched;
+                _configWatcher.Created += OnConfigTouched;
+                _configWatcher.Deleted += OnConfigTouched;
+                _configWatcher.Renamed += (s, e) => Restart();
+                _configWatcher.EnableRaisingEvents = true;
+            }
+            catch
+            {
+                // Watching is a convenience; without it the app simply behaves
+                // as it did before, reading the config at startup.
+            }
+        }
+
+        private void OnConfigTouched(object sender, FileSystemEventArgs e) => Restart();
+
+        // Watcher events arrive on a background thread; the timer belongs to
+        // the UI thread.
+        private void Restart()
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                _configSettle.Stop();
+                _configSettle.Start();
+            }));
+        }
+
+        private void PushConfigIfChanged()
+        {
+            try
+            {
+                var (url, model) = ReadConfig();
+                if (url == _lastSeen.url && model == _lastSeen.model) return;
+
+                _lastSeen = (url, model);
+
+                var json = JsonSerializer.Serialize(
+                    new { @event = "configChanged", data = new { url, model } });
+                webView?.CoreWebView2?.PostWebMessageAsJson(json);
+            }
+            catch
+            {
+                // A half-written file reads as unusable; the next event that
+                // settles will pick up the finished version.
             }
         }
 
@@ -158,6 +243,8 @@ namespace OllamaTurn
         protected override void OnClosed(EventArgs e)
         {
             try { File.Delete(ReadyMarkerPath); } catch { }
+            try { _configSettle?.Stop(); } catch { }
+            try { _configWatcher?.Dispose(); } catch { }
             base.OnClosed(e);
         }
 
@@ -171,6 +258,7 @@ namespace OllamaTurn
         private object GetConfig()
         {
             var (url, model) = ReadConfig();
+            _lastSeen = (url, model);
             try
             {
                 // First run — write the default so the file exists on disk.
@@ -213,6 +301,9 @@ namespace OllamaTurn
 
         private void WriteConfig(string url, string model)
         {
+            // Record it as seen before the watcher fires, so our own save is
+            // not mistaken for someone else's edit.
+            _lastSeen = (url, model);
             TurnConfig.Write(ConfigPath, url, model);
         }
 

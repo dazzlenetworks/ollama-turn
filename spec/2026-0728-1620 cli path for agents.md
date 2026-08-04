@@ -95,8 +95,9 @@ The two are validated differently, on purpose:
   answer. A server may legitimately be configured before it is up, and refusing
   to save would leave no way to point at a host that is temporarily down.
 
-A running app reads its config at startup, so a `--set-model` while the window is
-open won't be reflected there until it is reopened.
+A running app follows the change: it watches `config.json` and updates its URL box
+and model dropdown live, so `--set-model` takes effect in an open window without
+a restart. See [[2026-0721-1031 configuration storage model]].
 
 ### Distribution
 

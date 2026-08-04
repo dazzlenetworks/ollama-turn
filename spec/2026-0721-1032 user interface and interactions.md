@@ -48,6 +48,11 @@ connection-status dot in the header.
   on screen to read while the next prompt is typed. It is the mirror of Copy &
   Clear, which wipes the response and leaves the prompt — between them either
   half of a turn can be cleared without touching the other.
+- **Follows the config file:** if `config.json` changes while the window is open
+  — the CLI's `--set-model`, an editor, a file sync — the URL box and model
+  dropdown update themselves and an "Updated from config.json" flash appears
+  beside the server row. A changed URL reloads the model list, since a different
+  server means a different set of models.
 - **Connection status dot:** neutral / green (ok) / red (error), reflecting the
   last server interaction.
 

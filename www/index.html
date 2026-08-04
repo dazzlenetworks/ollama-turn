@@ -179,6 +179,7 @@
       <div class="row" style="justify-content: space-between;">
         <div class="meta" id="serverMeta"></div>
         <span class="saved-flash" id="savedFlash">Saved to config.json</span>
+        <span class="saved-flash" id="configFlash">Updated from config.json</span>
       </div>
     </section>
 
@@ -229,12 +230,18 @@
   }
   window.chrome.webview.addEventListener('message', ev => {
     const m = ev.data;
+    // The host also pushes unsolicited events, which carry no request id.
+    if (m && m.event) { onHostEvent(m.event, m.data); return; }
     const p = pending[m.id];
     if (!p) return;
     delete pending[m.id];
     if (m.ok) p.resolve(m.data);
     else p.reject(new Error(m.error || 'Unknown error'));
   });
+
+  function onHostEvent(name, data) {
+    if (name === 'configChanged') applyExternalConfig(data);
+  }
 
   // ---- Elements ----------------------------------------------------------
   const $ = id => document.getElementById(id);
@@ -250,6 +257,7 @@
   const serverMeta = $('serverMeta');
   const statusDot = $('statusDot');
   const savedFlash = $('savedFlash');
+  const configFlash = $('configFlash');
 
   function currentUrl() { return urlInput.value.trim(); }
   function setStatus(state) { // '', 'ok', 'err'
@@ -270,6 +278,38 @@
     if (!name || name === lastModel) return;
     lastModel = name;
     rpc('saveModel', { model: name }).catch(() => { /* non-fatal */ });
+  }
+
+  // config.json changed underneath us — the CLI's --set-model, a text editor,
+  // or a file sync from another machine. Follow it rather than sitting on
+  // settings that are no longer true.
+  //
+  // Nothing here is written back: assignments to .value don't fire 'change',
+  // and lastModel is set first so the reselect can't bounce a save at the host.
+  function applyExternalConfig(cfg) {
+    if (!cfg) return;
+    const urlChanged = (cfg.url || '') !== urlInput.value.trim();
+    const modelChanged = (cfg.model || '') !== modelSelect.value;
+    if (!urlChanged && !modelChanged) return;
+
+    urlInput.value = cfg.url || '';
+    lastModel = cfg.model || '';
+
+    if (urlChanged) {
+      // A different server means a different model list.
+      loadModels();
+    } else if (lastModel && [...modelSelect.options].some(o => o.value === lastModel)) {
+      modelSelect.value = lastModel;
+    } else {
+      loadModels();
+    }
+
+    flashConfig();
+  }
+
+  function flashConfig() {
+    configFlash.classList.add('show');
+    setTimeout(() => configFlash.classList.remove('show'), 2200);
   }
 
   // ---- Model loading -----------------------------------------------------
