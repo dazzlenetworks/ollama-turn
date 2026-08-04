@@ -52,16 +52,29 @@ file you want it to use — that takes precedence over everything else.
 If no model has been selected yet, one installed model is used automatically;
 otherwise the CLI lists what's available and stops rather than guessing.
 
-Overrides, when you do want them:
+It can also **change** the settings, so an agent can pick a model without anyone
+opening the app:
 
 ```
--m, --model <name>    Use a specific model instead of the published one
-    --url <url>       Point at a different Ollama server
+OllamaTurnCLI --list-models
+OllamaTurnCLI --set-model mistral:7b
+```
+
+`--set-model` is checked against what's actually installed and refuses a name the
+server doesn't have, so a typo can't sit in the config breaking every later run.
+
+Full set of options:
+
+```
+-m, --model <name>    Use a specific model for this turn only
+    --url <url>       Use a different Ollama server for this turn only
 -s, --system <text>   Prepend a system prompt
 -t, --timeout <sec>   Request timeout (default 600)
     --json            Emit the raw Ollama response (timings, token counts)
     --list-models     List the models installed on the server
     --show-config     Show the resolved URL, model, and where they came from
+    --set-model <n>   Save this model as the configured one
+    --set-url <url>   Save this server as the configured one
 -h, --help            Show usage
 ```
 

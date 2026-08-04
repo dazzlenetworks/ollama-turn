@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using OllamaTurn.Core;
@@ -22,13 +23,15 @@ namespace OllamaTurn.Cli
 Uses the server and model that Ollama Turn is set to, so there is nothing to
 configure. Options:
 
-  -m, --model <name>    Use this model instead of the configured one
-      --url <url>       Use this server instead of the configured one
+  -m, --model <name>    Use this model for this turn only
+      --url <url>       Use this server for this turn only
   -s, --system <text>   Prepend a system prompt
   -t, --timeout <sec>   Give up after this long (default 600)
       --json            Print the raw Ollama response object
       --list-models     List the models installed on the server
       --show-config     Print the resolved server, model, and their source
+      --set-model <n>   Save this model as the configured one, then exit
+      --set-url <url>   Save this server as the configured one, then exit
   -h, --help            Show this help
 
 Exit code is 0 on success, 1 on failure. Errors go to stderr.";
@@ -70,11 +73,12 @@ Exit code is 0 on success, 1 on failure. Errors go to stderr.";
             var baseUrl = opts.Url ?? config.Url;
             var timeout = TimeSpan.FromSeconds(opts.TimeoutSeconds);
 
+            if (opts.SetUrl != null || opts.SetModel != null)
+                return await SaveSettingsAsync(opts, config, timeout);
+
             if (opts.ShowConfig)
             {
-                Console.Out.WriteLine("url:    " + OllamaApi.NormalizeBase(baseUrl));
-                Console.Out.WriteLine("model:  " + (opts.Model ?? config.Model));
-                Console.Out.WriteLine("source: " + config.Source);
+                ShowConfig(OllamaApi.NormalizeBase(baseUrl), opts.Model ?? config.Model, config.Source);
                 return 0;
             }
 
@@ -104,6 +108,61 @@ Exit code is 0 on success, 1 on failure. Errors go to stderr.";
                 ? (turn.RawJson ?? "").Trim()
                 : (turn.Response ?? "").Trim());
             return 0;
+        }
+
+        // --set-url / --set-model: change the configured settings, so an agent
+        // can pick a model without anyone opening the app.
+        //
+        // A URL may legitimately be set before that server is up, so it is
+        // written and merely warned about if unreachable. A model, by contrast,
+        // is only meaningful if the server actually has it, so it is validated
+        // first and nothing is written when it isn't there - a typo would
+        // otherwise sit in the config and break every later run.
+        private static async Task<int> SaveSettingsAsync(
+            Options opts, TurnConfig config, TimeSpan timeout)
+        {
+            var url = opts.SetUrl ?? config.Url;
+            var model = config.Model;
+
+            if (opts.SetModel != null)
+            {
+                var installed = await OllamaApi.ListModelsAsync(url, timeout);
+                if (!installed.Contains(opts.SetModel))
+                    return Fail("no model named " + opts.SetModel + " on " +
+                                OllamaApi.NormalizeBase(url) + ". Available: " +
+                                string.Join(", ", installed));
+                model = opts.SetModel;
+            }
+
+            // Write back to the file we read, or create one beside this exe.
+            var target = File.Exists(config.Source)
+                ? config.Source
+                : Path.Combine(AppContext.BaseDirectory, "config.json");
+
+            TurnConfig.Write(target, url, model);
+            ShowConfig(OllamaApi.NormalizeBase(url), model, target);
+
+            if (opts.SetUrl != null && opts.SetModel == null)
+            {
+                try
+                {
+                    await OllamaApi.ListModelsAsync(url, timeout);
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine(
+                        "OllamaTurnCLI: saved, but that server did not answer: " + ex.Message);
+                }
+            }
+
+            return 0;
+        }
+
+        private static void ShowConfig(string url, string model, string source)
+        {
+            Console.Out.WriteLine("url:    " + url);
+            Console.Out.WriteLine("model:  " + model);
+            Console.Out.WriteLine("source: " + source);
         }
 
         // Nothing picked in the app yet: one installed model is unambiguous,
@@ -141,6 +200,8 @@ Exit code is 0 on success, 1 on failure. Errors go to stderr.";
             public List<string> PromptWords = new List<string>();
             public string Model;
             public string Url;
+            public string SetModel;
+            public string SetUrl;
             public string System;
             public int TimeoutSeconds = 600;
             public bool Json;
@@ -178,6 +239,12 @@ Exit code is 0 on success, 1 on failure. Errors go to stderr.";
                             break;
                         case "--url":
                             if (!Next(args, ref i, out o.Url)) { error = "--url needs a value."; return o; }
+                            break;
+                        case "--set-model":
+                            if (!Next(args, ref i, out o.SetModel)) { error = "--set-model needs a value."; return o; }
+                            break;
+                        case "--set-url":
+                            if (!Next(args, ref i, out o.SetUrl)) { error = "--set-url needs a value."; return o; }
                             break;
                         case "-s":
                         case "--system":

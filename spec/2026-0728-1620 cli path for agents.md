@@ -79,6 +79,25 @@ can't ship in `dist\`, and duplicates logic the app already had.
 - An unrecognised `-switch` is an error rather than prompt text — far more
   likely a typo than a one-word question.
 
+### Reading and Writing Settings
+
+`--model` and `--url` override a single turn. `--set-model` and `--set-url`
+change the configured values and exit, so an agent can select a model without
+anyone opening the app. They write back to the file discovery found, or create
+one beside the exe if there wasn't one.
+
+The two are validated differently, on purpose:
+
+- **`--set-model` is checked against `/api/tags` and refuses a name the server
+  doesn't have**, writing nothing. A bad model name would otherwise sit in the
+  config and break every later run, long after the typo.
+- **`--set-url` is written first and only warned about** if that server doesn't
+  answer. A server may legitimately be configured before it is up, and refusing
+  to save would leave no way to point at a host that is temporarily down.
+
+A running app reads its config at startup, so a `--set-model` while the window is
+open won't be reflected there until it is reopened.
+
 ### Distribution
 
 `publish.ps1` publishes both projects into `dist\`, so a release folder holds
@@ -111,12 +130,23 @@ the CLI should not make silently: it fails with the available names listed.
 The CLI talks to Ollama directly rather than driving the window, so the app does
 not need to be open. It reads published settings; it never writes them.
 
+## One Config Per Install, Deliberately
+
+The dev build (`bin\Debug\...`), the published `dist\` folder, and anything
+unzipped from a GitHub release each keep their own `config.json`. That is
+correct rather than a limitation: they are separate installations, and a machine
+may reasonably want the dev copy pointed somewhere other than the release copy.
+
+It does mean the CLI in one folder does not follow the app in another. Since the
+CLI can now both query and set the model, an agent working against a given
+install has everything it needs without the GUI at all.
+
 ## Out of Scope
 
 - Multi-turn conversation state (the app is single-turn by design, see
   [[2026-0721-1028 project overview and intent]]).
 - Streaming output — the CLI uses `stream: false` like the GUI.
-- Writing config from the CLI; it reads what the GUI publishes.
+- Pulling or deleting models; `--set-model` only chooses among installed ones.
 
 ## Related
 
