@@ -91,17 +91,27 @@ Helper scripts live in [`scripts/`](scripts):
 ```
 scripts\start.bat      Launch the app (builds first if needed)
 scripts\build.bat      Build the Debug configuration
+scripts\test.ps1       Run the test suite
 scripts\smoke.ps1      Launch the app, verify the window opened, close it
 scripts\publish.ps1    Publish both self-contained exes into dist\
 scripts\clean.ps1      Remove build artifacts (bin, obj, dist)
 ```
 
-`smoke.ps1` is the "does it actually run?" gate — it exits `0` only if the window
-opened and the app was still up afterwards. Run it unattended with:
+## Testing
 
 ```
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke.ps1 -NoPause
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\test.ps1 -NoPause
 ```
+
+Exercises the built executables the way a caller does — real process, real
+arguments and stdin, asserting stdout, stderr and exit code separately. It covers
+CLI behaviour and error paths, config discovery, the settings-writing paths, and
+finishes with the app smoke test (launch, wait for the UI to report ready, close).
+
+Every case runs against its own config file in a temp sandbox, so a test run can
+never change which model you have selected. Cases needing a live Ollama server
+report `SKIP` rather than failing when there isn't one. `-SkipServer`, `-SkipApp`
+and `-Cli <path>` narrow a run.
 
 ## How it works
 

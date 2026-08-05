@@ -18,6 +18,7 @@ parent of the scripts folder so they work regardless of the current directory:
 ```text
 scripts/start.bat     Launch the app (builds first if the exe is missing)
 scripts/build.bat     Build the Debug configuration
+scripts/test.ps1      The test suite (CLI, config discovery, app smoke)
 scripts/smoke.ps1     Launch the app, verify the window opened, close it
 scripts/publish.ps1   Publish a self-contained single-file release into dist/
 scripts/clean.ps1     Remove build artifacts (bin, obj, dist)
@@ -33,10 +34,53 @@ test → smoke test → spec → commit. This project's concrete commands are:
 ```text
 Build       scripts\build.bat   (or: dotnet build -c Debug)
             plus: dotnet build cli\OllamaTurnCLI.csproj -c Debug
-Test        none — the project has no automated test suite
-Smoke test  powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke.ps1 -NoPause
-            CLI changes also warrant a real turn through OllamaTurnCLI.exe
+Test        powershell -NoProfile -ExecutionPolicy Bypass -File scripts\test.ps1 -NoPause
+Smoke test  included in test.ps1 (or run scripts\smoke.ps1 -NoPause alone)
 ```
+
+## The Test Suite
+
+`scripts/test.ps1` codifies the checks that were previously run by hand after
+every change. It exercises the **built artifacts** as a caller would — starting
+the real exe, feeding it arguments and stdin, and asserting on stdout, stderr and
+the exit code separately — rather than testing code in isolation. For a tool
+whose contract *is* "stdout is the answer, stderr is the diagnostics, the exit
+code is the verdict", that is the thing worth testing.
+
+Coverage: CLI basics and error paths, config discovery (all ranks, plus corrupt
+and url-less files), live turns, the settings-writing paths, and the app smoke
+test as the final case.
+
+### Rules It Follows
+
+- **Never touch a real config.** Every case gets its own file in a temporary
+  sandbox, wiped at the end. A test run cannot change which model you have
+  selected. The only real file read is the one beside the CLI, and only to find
+  a server URL to probe.
+- **Isolated exe copies for fallback cases.** A test asserting what happens with
+  no config must run a copy of the exe in an empty folder — otherwise discovery
+  rank 2 finds the *real* `config.json` beside the shipped exe and answers with
+  it. Getting this wrong made three tests fail for the wrong reason.
+- **Skip, don't fail, when there is no server.** Server-dependent cases report
+  SKIP so the suite stays useful offline.
+- **Pick a model that can generate.** Embedding models answer `/api/tags` but
+  reject `/api/generate`, and one may be first in the list; the preflight prefers
+  a name without "embed" in it.
+
+`-SkipServer` and `-SkipApp` narrow a run; `-NoPause` keeps it unattended;
+`-Cli <path>` points it at a specific build (it defaults to the published exe,
+falling back to the Debug build).
+
+### What the First Run Found
+
+A real bug, immediately: with stdin redirected, .NET can emit a UTF-8 byte order
+mark, and `string.IsNullOrWhiteSpace` does not consider `U+FEFF` whitespace. An
+empty pipe therefore read as a prompt of one invisible character, and a piped
+file with a BOM — ordinary on Windows — had one prepended to the prompt. The CLI
+now strips a leading BOM from stdin, and a test pins the behaviour.
+
+This is the argument for the harness in miniature: the case had been run by hand
+several times without ever redirecting stdin the way a real caller does.
 
 ## The Smoke Test
 

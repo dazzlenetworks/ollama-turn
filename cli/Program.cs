@@ -186,7 +186,14 @@ Exit code is 0 on success, 1 on failure. Errors go to stderr.";
         private static string ResolvePrompt(List<string> words)
         {
             if (words.Count > 0) return string.Join(" ", words);
-            return Console.IsInputRedirected ? Console.In.ReadToEnd() : "";
+            if (!Console.IsInputRedirected) return "";
+
+            // A piped file often starts with a UTF-8 byte order mark, and
+            // .NET's own redirected stdin can emit one on its own. It is not
+            // whitespace as far as string.IsNullOrWhiteSpace is concerned, so
+            // without this an empty pipe reads as a prompt of one invisible
+            // character - and a real piped file gets one prepended.
+            return Console.In.ReadToEnd().TrimStart('\uFEFF');
         }
 
         private static int Fail(string message)

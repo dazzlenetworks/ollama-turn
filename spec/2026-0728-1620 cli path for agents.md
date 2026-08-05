@@ -69,7 +69,10 @@ can't ship in `dist\`, and duplicates logic the app already had.
 ### Behavior
 
 - The prompt is positional (remaining arguments are joined), or read from stdin
-  when piped. Empty prompt is an error, not an empty turn.
+  when piped. Empty prompt is an error, not an empty turn. A leading UTF-8 byte
+  order mark is stripped from stdin — `U+FEFF` is not whitespace to
+  `string.IsNullOrWhiteSpace`, so without that an empty pipe looks like a
+  one-character prompt and a BOM'd file prepends an invisible character.
 - stdout carries **only** the response text. Diagnostics go to stderr, and the
   exit code is `0` on success, `1` on any failure. No banner, no colour.
 - `--json` emits the raw Ollama response object instead, for callers that want
