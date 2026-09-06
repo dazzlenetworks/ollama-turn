@@ -21,7 +21,7 @@ connection-status dot in the header.
 
 ## Cards
 
-1. **Ollama server** — a URL textbox with **Save** and **Refresh models**
+1. **Ollama Server** — a URL textbox with **Save** and **Refresh models**
    buttons, plus a status/meta line and a transient "Saved" confirmation.
 2. **Prompt** — a model dropdown, a message textarea, and a **Clear** / **Send**
    button pair. **Clear** sits to the left of **Send** and wears the same
