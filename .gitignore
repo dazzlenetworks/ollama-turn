@@ -8,10 +8,8 @@ dist/
 # WebView2 runtime user-data folder (created next to the exe at runtime)
 *.WebView2/
 
-# Visual Studio / Rider / VS Code
+# Visual Studio
 .vs/
-.idea/
-.vscode/
 *.user
 *.suo
 
