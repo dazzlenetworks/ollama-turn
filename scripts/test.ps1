@@ -42,9 +42,10 @@ $serverOk    = $false
 $serverUrl   = $null
 $firstModel  = $null
 
+$published  = Join-Path $projectRoot "dist\OllamaTurnCLI.exe"
+$debugBuild = Join-Path $projectRoot "cli\bin\Debug\net9.0\OllamaTurnCLI.exe"
+
 if (-not $Cli) {
-    $published = Join-Path $projectRoot "dist\OllamaTurnCLI.exe"
-    $debugBuild = Join-Path $projectRoot "cli\bin\Debug\net9.0\OllamaTurnCLI.exe"
     $Cli = if (Test-Path $published) { $published } else { $debugBuild }
 }
 
@@ -175,7 +176,27 @@ if (-not (Test-Path -LiteralPath $Cli)) {
     exit 1
 }
 
-Write-Output "  Testing: $Cli"
+# Say which build answered, not just where it lives. $Cli prefers the published
+# exe while smoke.ps1 always launches the Debug window, so one run can cover a
+# window built a minute ago and a CLI built days ago and report a single summary
+# over both. A session that fixes the CLI, runs this, and watches the fix not
+# appear has otherwise nothing to go on.
+if ($Cli -eq $published) {
+    Write-Output "  Testing: $Cli"
+    Write-Output "           the published build - re-run scripts\publish.ps1 after changing"
+    Write-Output "           the CLI, or this suite tests the previous one"
+}
+elseif ($Cli -eq $debugBuild) {
+    Write-Output "  Testing: $Cli (the Debug build)"
+}
+else {
+    Write-Output "  Testing: $Cli (given with -Cli)"
+}
+
+if (-not $SkipApp) {
+    Write-Output "  App:     the Debug build, launched by smoke.ps1"
+}
+
 New-Item -ItemType Directory -Path $sandbox -Force | Out-Null
 Write-Output "  Sandbox: $sandbox"
 
