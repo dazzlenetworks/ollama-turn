@@ -48,17 +48,22 @@
   header .spacer { flex: 1; }
   header .hint { color: var(--muted); font-size: 12px; }
 
+  /* The scroller is full width so its scrollbar sits on the window's own edge.
+     The width limit and the centring belong to the column inside it: put both
+     jobs on one element and the scrollbar parks (window width - 1080) / 2 short
+     of the edge, which grows as the window widens. */
   main {
     flex: 1;
     overflow-y: auto;
-    padding: 22px;
+  }
+  main > .column {
     display: flex;
     flex-direction: column;
     gap: 18px;
     max-width: 1080px;
     width: 100%;
     margin: 0 auto;
-    padding-top: 28px;
+    padding: 28px 22px 22px;
   }
 
   .card {
@@ -166,55 +171,57 @@
   </header>
 
   <main>
-    <!-- Settings -->
-    <section class="card">
-      <h2>Ollama Server</h2>
-      <div class="row">
-        <div class="grow">
-          <input type="text" id="urlInput" placeholder="http://host:11434/" spellcheck="false" />
+    <div class="column">
+      <!-- Settings -->
+      <section class="card">
+        <h2>Ollama Server</h2>
+        <div class="row">
+          <div class="grow">
+            <input type="text" id="urlInput" placeholder="http://host:11434/" spellcheck="false" />
+          </div>
+          <button id="saveBtn" class="secondary">Save</button>
+          <button id="refreshBtn" class="secondary">Refresh models</button>
         </div>
-        <button id="saveBtn" class="secondary">Save</button>
-        <button id="refreshBtn" class="secondary">Refresh models</button>
-      </div>
-      <div class="row" style="justify-content: space-between;">
-        <div class="meta" id="serverMeta"></div>
-        <span class="saved-flash" id="savedFlash">Saved to config.json</span>
-        <span class="saved-flash" id="configFlash">Updated from config.json</span>
-      </div>
-    </section>
+        <div class="row" style="justify-content: space-between;">
+          <div class="meta" id="serverMeta"></div>
+          <span class="saved-flash" id="savedFlash">Saved to config.json</span>
+          <span class="saved-flash" id="configFlash">Updated from config.json</span>
+        </div>
+      </section>
 
-    <!-- Prompt -->
-    <section class="card">
-      <h2>Prompt</h2>
-      <label class="field">
-        <div class="lbl">Model</div>
-        <select id="modelSelect"><option value="">(no models loaded)</option></select>
-      </label>
-      <div style="height:12px"></div>
-      <label class="field">
-        <div class="lbl">Message</div>
-        <textarea id="promptInput" placeholder="Ask something&hellip;  (Enter to send, Shift+Enter for a new line)"></textarea>
-      </label>
-      <div class="row" style="margin-top:12px; justify-content: flex-end;">
-        <button id="clearBtn" class="secondary">Clear</button>
-        <button id="sendBtn">Send</button>
-      </div>
-    </section>
+      <!-- Prompt -->
+      <section class="card">
+        <h2>Prompt</h2>
+        <label class="field">
+          <div class="lbl">Model</div>
+          <select id="modelSelect"><option value="">(no models loaded)</option></select>
+        </label>
+        <div style="height:12px"></div>
+        <label class="field">
+          <div class="lbl">Message</div>
+          <textarea id="promptInput" placeholder="Ask something&hellip;  (Enter to send, Shift+Enter for a new line)"></textarea>
+        </label>
+        <div class="row" style="margin-top:12px; justify-content: flex-end;">
+          <button id="clearBtn" class="secondary">Clear</button>
+          <button id="sendBtn">Send</button>
+        </div>
+      </section>
 
-    <!-- Response -->
-    <section class="card">
-      <h2>Response</h2>
-      <div id="response" class="response placeholder">No response yet.</div>
-      <div class="meta" id="responseMeta"></div>
-      <div class="row" style="margin-top:12px; align-items:center;">
-        <button id="copyBtn" class="secondary">Copy</button>
-        <button id="copyClearBtn" class="secondary">Copy &amp; Clear</button>
-        <button id="copyCloseBtn" class="secondary">Copy &amp; Close</button>
-        <span class="saved-flash" id="copyFlash">Copied</span>
-        <span class="grow"></span>
-        <button id="exportBtn">Export</button>
-      </div>
-    </section>
+      <!-- Response -->
+      <section class="card">
+        <h2>Response</h2>
+        <div id="response" class="response placeholder">No response yet.</div>
+        <div class="meta" id="responseMeta"></div>
+        <div class="row" style="margin-top:12px; align-items:center;">
+          <button id="copyBtn" class="secondary">Copy</button>
+          <button id="copyClearBtn" class="secondary">Copy &amp; Clear</button>
+          <button id="copyCloseBtn" class="secondary">Copy &amp; Close</button>
+          <span class="saved-flash" id="copyFlash">Copied</span>
+          <span class="grow"></span>
+          <button id="exportBtn">Export</button>
+        </div>
+      </section>
+    </div>
   </main>
 
 <script>
