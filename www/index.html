@@ -43,8 +43,8 @@
     background: var(--muted); flex: none;
     transition: background .2s;
   }
-  header .dot.ok { background: var(--good); box-shadow: 0 0 8px rgba(62,207,142,.6); }
-  header .dot.err { background: var(--bad); box-shadow: 0 0 8px rgba(255,107,107,.6); }
+  header .dot.ok { background: var(--good); box-shadow: 0 0 8px color-mix(in srgb, var(--good) 60%, transparent); }
+  header .dot.err { background: var(--bad); box-shadow: 0 0 8px color-mix(in srgb, var(--bad) 60%, transparent); }
   header .spacer { flex: 1; }
   header .hint { color: var(--muted); font-size: 12px; }
 
@@ -97,14 +97,18 @@
   }
   input[type=text]:focus, select:focus, textarea:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(91,140,255,.15);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
   }
   textarea { resize: vertical; min-height: 90px; }
   select {
     appearance: none;
     cursor: pointer;
     padding-right: 36px;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1.5l5 5 5-5' fill='none' stroke='%239aa3b2' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    /* The stroke below is --muted written out by hand, and it is the one colour
+       here that a variable cannot reach: this is a data: URI, and custom
+       properties do not resolve inside one. Change it with --muted or the
+       chevron drifts away from the labels it sits among. */
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1.5l5 5 5-5' fill='none' stroke='%23a6b0bf' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>");
     background-repeat: no-repeat;
     background-position: right 13px center;
     background-size: 12px 8px;
