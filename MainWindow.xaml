@@ -5,7 +5,7 @@
         Title="Ollama Turn" Height="760" Width="900"
         WindowState="Maximized"
         WindowStartupLocation="CenterScreen"
-        Background="#0f1115">
+        Background="#111315">
     <Grid>
         <wv2:WebView2 x:Name="webView" />
     </Grid>
