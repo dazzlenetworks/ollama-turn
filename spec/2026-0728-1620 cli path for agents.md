@@ -69,10 +69,16 @@ can't ship in `dist\`, and duplicates logic the app already had.
 ### Behavior
 
 - The prompt is positional (remaining arguments are joined), or read from stdin
-  when piped. Empty prompt is an error, not an empty turn. A leading UTF-8 byte
-  order mark is stripped from stdin — `U+FEFF` is not whitespace to
-  `string.IsNullOrWhiteSpace`, so without that an empty pipe looks like a
-  one-character prompt and a BOM'd file prepends an invisible character.
+  when piped. Empty prompt is an error, not an empty turn.
+- **stdin is read as UTF-8**, with byte order mark detection, rather than
+  through `Console.In` — which decodes using the console's own input codepage.
+  On a default Windows console that is an OEM codepage, under which the three
+  bytes of a UTF-8 mark arrive as three ordinary printable characters: they are
+  not whitespace, so an empty pipe looked like a prompt, and a real prompt
+  reached the model with those characters in front of it. A caller piping text
+  in the console's codepage rather than UTF-8 gets replacement characters, and
+  that trade is deliberate — UTF-8 is what a piped file and a modern shell
+  produce.
 - stdout carries **only** the response text. Diagnostics go to stderr, and the
   exit code is `0` on success, `1` on any failure. No banner, no colour.
 - `--json` emits the raw Ollama response object instead, for callers that want

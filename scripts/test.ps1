@@ -77,7 +77,18 @@ function Invoke-Cli {
     $psi.EnvironmentVariables["OLLAMA_TURN_CONFIG"] = $ConfigPath
 
     $p = [Diagnostics.Process]::Start($psi)
-    if ($StdIn) { $p.StandardInput.Write($StdIn) }
+
+    # Written as UTF-8 bytes to the base stream rather than through Write(),
+    # which encodes using the console's codepage. Under an OEM codepage a
+    # character with no mapping - a byte order mark, for one - becomes a
+    # question mark, so the pipe carried something other than what the case
+    # meant to send and the CLI was tested against the wrong bytes. UTF-8 is
+    # also what the CLI now reads, so the harness and the contract agree.
+    if ($StdIn) {
+        $bytes = [Text.Encoding]::UTF8.GetBytes($StdIn)
+        $p.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
+        $p.StandardInput.BaseStream.Flush()
+    }
     $p.StandardInput.Close()
     $out = $p.StandardOutput.ReadToEnd()
     $err = $p.StandardError.ReadToEnd()

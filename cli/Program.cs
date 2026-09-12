@@ -188,12 +188,23 @@ Exit code is 0 on success, 1 on failure. Errors go to stderr.";
             if (words.Count > 0) return string.Join(" ", words);
             if (!Console.IsInputRedirected) return "";
 
-            // A piped file often starts with a UTF-8 byte order mark, and
-            // .NET's own redirected stdin can emit one on its own. It is not
-            // whitespace as far as string.IsNullOrWhiteSpace is concerned, so
-            // without this an empty pipe reads as a prompt of one invisible
-            // character - and a real piped file gets one prepended.
-            return Console.In.ReadToEnd().TrimStart('\uFEFF');
+            // Read the pipe as UTF-8 rather than through Console.In, which
+            // decodes using the console's own input codepage. On a default
+            // Windows console that is an OEM codepage, and the three bytes of a
+            // UTF-8 byte order mark arrive as three ordinary printable
+            // characters - so an empty pipe read as a prompt, and a real prompt
+            // got those characters prepended before it reached the model.
+            //
+            // detectEncodingFromByteOrderMarks lets the reader consume the mark
+            // itself, in whichever form it arrives. The TrimStart stays for a
+            // second mark sitting behind the first, which detection does not
+            // look for.
+            using var stdin = new StreamReader(
+                Console.OpenStandardInput(),
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+                detectEncodingFromByteOrderMarks: true);
+
+            return stdin.ReadToEnd().TrimStart('\uFEFF');
         }
 
         private static int Fail(string message)
