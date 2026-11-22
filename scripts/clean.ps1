@@ -3,16 +3,24 @@
 # Created 7/21/2026
 
 
+param(
+    # Also remove dist\, the published build. Left alone by default: it is an install
+    # someone may launch, with their own config.json beside it.
+    [switch] $IncludeDist
+)
+
+
 
 # Welcome
-Write-Output "This script removes build artifacts (bin, obj, dist) from the project."
-Write-Output "Your source and the www UI are left untouched. A config.json beside a built or published exe goes with its folder."
+Write-Output "This script removes build artifacts (bin, obj) from the project, and dist with -IncludeDist."
+Write-Output "Your source and the www UI are left untouched. A config.json beside a built exe goes with its folder."
 
 
 
 # Variables
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$targets     = @("bin", "obj", "dist")
+$targets     = @("bin", "obj")
+if ($IncludeDist) { $targets += "dist" }
 
 
 
@@ -28,10 +36,16 @@ foreach ($target in $targets) {
     }
 }
 
+if ($IncludeDist) {
+    Write-Output "`ndist was removed, including the published build and any config.json beside it."
+} else {
+    Write-Output "`nKept dist: it is the published build, and may be an install with its own config.json. Pass -IncludeDist to remove it."
+}
+
 
 
 # Summary
-Write-Output "`nSummary: bin, obj, and dist have been cleared (where they existed)."
+Write-Output "`nSummary: $($targets -join ', ') cleared (where they existed)."
 Write-Output "The next build will recreate them from source."
 
 

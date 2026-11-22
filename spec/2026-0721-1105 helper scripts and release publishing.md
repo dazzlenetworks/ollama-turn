@@ -21,10 +21,16 @@ scripts/build.bat     Build the Debug configuration
 scripts/test.ps1      The test suite (CLI, config discovery, app smoke)
 scripts/smoke.ps1     Launch the app, verify the window opened, close it
 scripts/publish.ps1   Publish a self-contained single-file release into dist/
-scripts/clean.ps1     Remove build artifacts (bin, obj, dist)
+scripts/clean.ps1     Remove build artifacts (bin, obj); dist only with -IncludeDist
 ```
 
 `scripts/start.bat` replaces the former root-level `start.bat`.
+
+`clean.ps1` leaves `dist/` alone unless it is given `-IncludeDist`. `dist/` is the
+published build, and once someone launches it — from a shortcut or a taskbar pin
+— it is an install with its own configured `config.json` beside it, which a
+routine clean should not take with the build output. `bin/` and `obj/` still go,
+and with them any `config.json` beside a built exe, as `dotnet clean` does.
 
 ## Unit-of-Work Gates
 
