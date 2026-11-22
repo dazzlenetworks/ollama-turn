@@ -6,8 +6,8 @@ created: 7/21/2026 10:31
 
 ## Purpose
 
-Document how and where the Ollama server URL is stored, and the reasoning behind
-having both a tracked template and a runtime copy. This resolves the original
+Document how and where the Ollama server URL is stored, and why the repository
+ships an example of the file rather than a copy of it. This resolves the original
 "how does a simple page save settings to a file?" question.
 
 ## The Original Question
@@ -24,23 +24,37 @@ host solved this: the C# side has normal filesystem access.
   exe** (`AppContext.BaseDirectory`), i.e. `bin\...\config.json`.
 - The in-app textbox + **Save** button writes to that real file; the file can
   also be edited directly in a text editor.
-- On first run, if the file is missing, the host creates it from the default.
+- A missing file reads as the built-in default; the host writes the file the
+  first time it saves a setting — the Save button, or the model being recorded
+  once the list has loaded.
 - Corrupt or unreadable config falls back to the default rather than crashing.
 
-## Tracked Template vs. Runtime Copy
+## An Example, Not a Template
 
-- The repository tracks a **template** `config.json` at the project root with a
-  neutral default of `http://localhost:11434/`.
-- The build copies it to the output directory (`PreserveNewest`) so a fresh
-  checkout runs sensibly, without clobbering a user's edited runtime copy.
-- **Do not edit the tracked template casually.** `PreserveNewest` protects the
-  runtime copy only while the template stays older than it. Touching the
-  template makes it newer, and the next build overwrites the user's real
-  settings with the committed `localhost` default. This was learned the hard
-  way: adding a cosmetic `"model": ""` key to the template silently reset a
-  working server URL. New keys need no template entry — a missing key already
-  falls back to its default.
-- The runtime copy under `bin/` is **gitignored**, so a user's real server URL
+- The repository tracks **`config.example.json`** at the project root, holding
+  the neutral default `http://localhost:11434/`. It documents the file's shape
+  and nothing copies it anywhere.
+- **No build or publish writes a `config.json`.** It used to: the repository
+  tracked a template `config.json` that the build copied beside the exe with
+  `PreserveNewest`. That protected the runtime copy only while the template
+  stayed older than it — adding a cosmetic `"model": ""` key to the template once
+  silently reset a working server URL — and a publish follows the same rule, so
+  once the template was the newer file, publishing into a configured release
+  folder overwrote the real one too. The code's built-in default made the copy unnecessary,
+  so it was removed rather than guarded.
+- **Removing the copy is not enough on its own.** A build made while the rule
+  existed lists `config.json` among its outputs, and MSBuild's incremental clean
+  deletes a listed output that the current build no longer produces — so the first
+  build after the rule went would delete a configured runtime copy. The project
+  therefore declares `$(OutDir)config.json` as one of its own outputs
+  (`FileWrites`, in a target that runs before `_CleanGetCurrentAndPriorFileWrites`)
+  without writing it. Hooked any later — on `IncrementalClean` itself — it does
+  not work, because the list has already been taken. `dotnet clean` still deletes
+  the runtime copy, as it did before.
+- New keys need no entry in the example to work — a missing key already falls
+  back to its default — though the example should show any a user may set.
+- `config.json` at the repository root is **gitignored**, and the runtime copies
+  under `bin/` and `dist/` are ignored with their folders, so a real server URL
   never ends up in version control.
 
 ## Why `localhost` Is the Committed Default

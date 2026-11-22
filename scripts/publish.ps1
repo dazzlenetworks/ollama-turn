@@ -49,7 +49,7 @@ if ($exitCode -ne 0) {
 
 # Publish the CLI into the same folder
 # Both front ends land beside one config.json, which is what the CLI reads when
-# it is run from a distributed copy.
+# it is run from a distributed copy. The app writes it; no publish does.
 Write-Output "`nPublishing the CLI to the same folder..."
 
 Push-Location $projectRoot
@@ -71,18 +71,17 @@ if ($exitCode -ne 0) {
 
 
 
-# Make sure the release folder has a config.json
-# Both exes read the one sitting beside them, and publishing the second project
-# into this folder can drop the copy the first one put there. Seed it from the
-# project default when it is missing, and never overwrite a real one.
+# Report the release config
+# Neither publish writes a config.json, so a configured one in this folder is
+# never overwritten. Without one, both exes use the built-in default and the app
+# writes the file on first save. config.example.json shows its shape.
 $distConfig = Join-Path $outputDir "config.json"
 Write-Output "`nChecking the release config..."
 
 if (Test-Path $distConfig) {
     Write-Output "  Kept the existing $distConfig"
 } else {
-    Copy-Item (Join-Path $projectRoot "config.json") $distConfig
-    Write-Output "  Seeded $distConfig from the project default."
+    Write-Output "  None yet. The app writes one on first save; until then both use http://localhost:11434/."
 }
 
 
@@ -90,7 +89,7 @@ if (Test-Path $distConfig) {
 # Summary
 Write-Output "`nSummary:"
 Write-Output "  Self-contained OllamaTurn.exe and OllamaTurnCLI.exe now live in: $outputDir"
-Write-Output "  config.json and the www UI are copied alongside them, ready to zip and distribute."
+Write-Output "  The www UI is copied alongside them, ready to zip and distribute."
 
 
 

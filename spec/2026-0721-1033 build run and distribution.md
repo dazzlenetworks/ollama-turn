@@ -17,8 +17,10 @@ including the icon and repository hygiene decisions.
 - `shared/` holds the code compiled into both: config discovery and the Ollama
   calls. The WPF project excludes `cli/**` from its default glob.
 - Single NuGet dependency: `Microsoft.Web.WebView2`.
-- The `www/` folder and the template `config.json` are copied next to the exe on
-  build via `PreserveNewest`.
+- The `www/` folder is copied next to the exe on build via `PreserveNewest`. No
+  `config.json` is copied: the app writes its own on first save, and
+  `config.example.json` only documents the shape. See
+  [[2026-0721-1031 configuration storage model]].
 
 ## Running It
 

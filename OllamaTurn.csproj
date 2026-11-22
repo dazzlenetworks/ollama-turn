@@ -26,10 +26,23 @@
     <None Update="www\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <!-- Ship a default config.json next to the exe (won't clobber edits on rebuild) -->
-    <None Update="config.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <!-- No config.json is copied: the app falls back to its built-in default and
+         writes the file beside the exe on first save. config.example.json only
+         documents the file's shape, so a build or publish can never overwrite a
+         configured copy. -->
   </ItemGroup>
+
+  <!-- Builds before this file stopped copying config.json listed it as one of
+       their outputs, and MSBuild's incremental clean deletes a listed output the
+       current build no longer produces - which would take a configured copy with
+       it. Declaring it here keeps it on the list without writing it. This has to
+       run before _CleanGetCurrentAndPriorFileWrites, which takes the list;
+       hooking IncrementalClean itself is too late. dotnet clean still deletes it,
+       as it always has. -->
+  <Target Name="KeepRuntimeConfig" BeforeTargets="_CleanGetCurrentAndPriorFileWrites">
+    <ItemGroup>
+      <FileWrites Include="$(OutDir)config.json" />
+    </ItemGroup>
+  </Target>
 
 </Project>

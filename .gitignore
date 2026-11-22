@@ -5,6 +5,9 @@ obj/
 # Self-contained publish output (scripts/publish.ps1)
 dist/
 
+# A real config holds a real server address. config.example.json shows the shape.
+/config.json
+
 # WebView2 runtime user-data folder (created next to the exe at runtime)
 *.WebView2/
 

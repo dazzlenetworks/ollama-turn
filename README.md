@@ -119,7 +119,7 @@ and `-Cli <path>` narrow a run.
 - The **C# host** (not the browser page) makes the HTTP calls to Ollama, so there is **no CORS** to configure — you do **not** need `OLLAMA_ORIGINS`.
 - The window and the CLI are two front ends over one core: config discovery and the Ollama calls live in [`shared/`](shared) and are compiled into both, so they can't drift apart.
 - The Ollama URL and the selected model are stored in **`config.json`** sitting next to the exe. The textbox + **Save** button writes to that real file on disk, and picking a model in the dropdown updates it too.
-  - Default: `http://localhost:11434/` (point it at your own Ollama host, local or on the network).
+  - Default: `http://localhost:11434/` (point it at your own Ollama host, local or on the network). There is no file until the app first saves a setting; until then the default is used. [`config.example.json`](config.example.json) shows the file's shape.
   - You can edit `config.json` directly in Notepad, or change it in the app.
   - `OllamaTurnCLI.exe` reads the very same file from its own folder — one file, no copies.
 
@@ -172,18 +172,17 @@ MainWindow.xaml(.cs) WebView2 host + config I/O + Ollama proxy + Markdown export
 www/index.html       The UI (HTML/CSS/JS, self-contained)
 shared/              Config discovery + Ollama calls, compiled into both exes
 cli/                 OllamaTurnCLI project: the command-line front end
-config.json          { "url": "http://localhost:11434/" } — the app adds "model"
+config.example.json  The shape of config.json: { "url": "..." } — the app adds "model"
 spec/                Design notes: the build story, the export format, the CLI
 ```
 
 ## Notes
 
-- The `config.json` that matters at runtime is the copy next to the exe
-  (`bin\Debug\net9.0-windows\config.json`). It's created from the project default
-  on first run and preserved across rebuilds.
-  - That preservation only holds while the tracked template stays untouched —
-    editing it makes it newer, and the next build overwrites your real settings
-    with the committed default. New keys don't need a template entry.
+- The `config.json` that matters at runtime is the one next to the exe
+  (`bin\Debug\net9.0-windows\config.json` when run from a build). The app writes
+  it on first save, and no build or publish ever copies one over it. A
+  `config.json` at the repository root is ignored by git, so a real server
+  address cannot be committed by accident.
 - Requires the **WebView2 Runtime** (ships with modern Windows 10/11 and Edge) and the **.NET 9 SDK**.
 
 ## License

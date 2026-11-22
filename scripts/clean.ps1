@@ -6,7 +6,7 @@
 
 # Welcome
 Write-Output "This script removes build artifacts (bin, obj, dist) from the project."
-Write-Output "Your source, config.json, and the www UI are left untouched."
+Write-Output "Your source and the www UI are left untouched. A config.json beside a built or published exe goes with its folder."
 
 
 

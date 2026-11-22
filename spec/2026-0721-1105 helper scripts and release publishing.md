@@ -179,12 +179,14 @@ Result:
 - Trimming is applied only to the CLI. WPF does not support it, and the CLI is
   only trim-safe because `shared/` avoids reflection-based JSON — see
   [[2026-0728-1620 cli path for agents]].
-- `config.json` and the `www/` UI are copied alongside them, so the folder is
-  ready to zip and distribute (e.g. as a GitHub Release asset). Both exes read
-  that one `config.json`, so the release folder must always contain one.
-- Publishing a second project into the same folder can remove the `config.json`
-  the first one placed there, so the script re-seeds it from the project default
-  afterwards **only when it is missing** — never overwriting a configured file.
+- The `www/` UI is copied alongside them, so the folder is ready to zip and
+  distribute (e.g. as a GitHub Release asset). Both exes read the one
+  `config.json` beside them; **neither publish writes it**, so a configured file
+  already in the release folder is kept, and a fresh folder runs on the built-in
+  `localhost` default until the app first saves. The script reports which.
+  It once seeded the file from a tracked template, and the app's publish could
+  overwrite a configured copy before that guard ran — see
+  [[2026-0721-1031 configuration storage model]].
 
 `publish.ps1` takes `-NoPause`, like `smoke.ps1`, so it can run unattended.
 
